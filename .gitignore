@@ -1,0 +1,17 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+
+# Node.js
+node_modules/
+.env
+
+# VS Code
+.vscode/
+
+# Other
+.DS_Store
