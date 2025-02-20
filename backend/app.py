@@ -208,8 +208,17 @@ def budget_insights():
 
     try:
         with get_db_cursor() as cur:
+            # Fetch the user_id for the logged-in user
+            cur.execute('SELECT user_id FROM users WHERE email = %s;', (user_email,))
+            user = cur.fetchone()
+
+            if not user:
+                return jsonify({"message": "User not found"}), 404
+
+            user_id = user['user_id']
+
             # Get budgets
-            cur.execute('SELECT * FROM budgets WHERE user_email = %s;', (user_email,))
+            cur.execute('SELECT * FROM budgets WHERE user_id = %s;', (user_id,))
             budgets = cur.fetchall()
 
             # Get expenses
@@ -250,12 +259,21 @@ def ai_insights():
 
     try:
         with get_db_cursor() as cur:
+            # Fetch the user_id for the logged-in user
+            cur.execute('SELECT user_id FROM users WHERE email = %s;', (user_email,))
+            user = cur.fetchone()
+
+            if not user:
+                return jsonify({"error": "User not found"}), 404
+
+            user_id = user['user_id']
+
             # Fetch expenses
             cur.execute('SELECT * FROM expenses WHERE user_email = %s;', (user_email,))
             user_expenses = cur.fetchall()
 
             # Fetch budgets
-            cur.execute('SELECT * FROM budgets WHERE user_email = %s;', (user_email,))
+            cur.execute('SELECT * FROM budgets WHERE user_id = %s;', (user_id,))
             budgets = cur.fetchall()
 
         if not user_expenses:
@@ -270,8 +288,8 @@ def ai_insights():
             prompt += f"- {budget['category']}: ${budget['budget_limit']} for {budget['month']}\n"
         prompt += "\nProvide actionable advice to save money and improve financial health."
 
-        # Call OpenAI API
-        response = openai.ChatCompletion.create(
+        # Call OpenAI API using the new client
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful financial advisor."},
@@ -280,7 +298,9 @@ def ai_insights():
             max_tokens=150,
             temperature=0.7,
         )
-        insights = response.choices[0].message['content'].strip()
+
+        # Extract the response content
+        insights = response.choices[0].message.content.strip()
         return jsonify({"insights": insights}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
