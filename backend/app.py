@@ -1,312 +1,235 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import timedelta
+from datetime import datetime
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+import uuid
+import plaid
+from plaid.api import plaid_api
+from twilio.rest import Client
 import os
 from dotenv import load_dotenv
-from openai import OpenAI  
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from marshmallow import Schema, fields, ValidationError
-from contextlib import contextmanager
+from flask_migrate import Migrate
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 
-# Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
 
-# Configure JWT
-app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET')
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)  # Tokens expire after 1 hour
+# Configure PostgreSQL Database
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://myuser:mypassword@localhost/finance_db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize Database
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)  # Initialize Flask-Migrate
+
+# JWT Configuration
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')  # Load secret key from environment
 jwt = JWTManager(app)
 
-# Set OpenAI API key
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+# Plaid Configuration
+plaid_config = plaid.Configuration(
+    host=plaid.Environment.Sandbox,  # Use Sandbox for testing
+    api_key={
+        'clientId': os.getenv('PLAID_CLIENT_ID'),  # Load from environment
+        'secret': os.getenv('PLAID_SECRET'),       # Load from environment
+    }
+)
+plaid_client = plaid_api.PlaidApi(plaid.ApiClient(plaid_config))
 
-# Database connection function
-def get_db_connection():
-    conn = psycopg2.connect(
-        host="localhost",
-        port=5432,
-        dbname="finance_manager",
-        user="postgres",
-        password="1234",
-        cursor_factory=RealDictCursor
-    )
-    return conn
+# Twilio Configuration
+twilio_client = Client(os.getenv('TWILIO_ACCOUNT_SID'), os.getenv('TWILIO_AUTH_TOKEN'))  # Load from environment
 
-# Context manager for database cursor
-@contextmanager
-def get_db_cursor():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        yield cur
-    finally:
-        conn.commit()
-        cur.close()
-        conn.close()
+# Models
+class User(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(100), nullable=False)
 
-# Marshmallow Schemas for Input Validation
-class UserSchema(Schema):
-    username = fields.Str(required=False)  # Optional field
-    email = fields.Email(required=True)
-    password = fields.Str(required=True)
-class ExpenseSchema(Schema):
-    description = fields.Str(required=True)
-    amount = fields.Float(required=True)
-    category = fields.Str(required=True)
+class Expense(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
 
-class BudgetSchema(Schema):
-    category = fields.Str(required=True)
-    budget_limit = fields.Float(required=True)
-    month = fields.Str(required=True)
+class Budget(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    limit = db.Column(db.Float, nullable=False)
 
-# Home route
-@app.route('/')
-def home():
-    """Home route to welcome users."""
-    return "Welcome to the Finance Manager Backend!"
+class Goal(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
+    goal_name = db.Column(db.String(100), nullable=False)
+    target_amount = db.Column(db.Float, nullable=False)
+    saved_amount = db.Column(db.Float, default=0.0)
 
-@app.route('/register', methods=['POST'])
+# Helper Functions
+def predict_future_expenses(user_id):
+    """Improved AI model to predict future expenses using Random Forest."""
+    expenses = Expense.query.filter_by(user_id=user_id).all()
+    if not expenses:
+        return []
+
+    # Prepare data for the model
+    X = np.array([i for i in range(len(expenses))]).reshape(-1, 1)
+    y = np.array([expense.amount for expense in expenses])
+
+    # Train a Random Forest model
+    model = RandomForestRegressor()
+    model.fit(X, y)
+
+    # Predict next 3 months
+    future_X = np.array([len(expenses), len(expenses) + 1, len(expenses) + 2]).reshape(-1, 1)
+    predictions = model.predict(future_X)
+
+    return predictions.tolist()
+
+
+# API Endpoints
+
+# User Management
+@app.route('/api/auth/register', methods=['POST'])
 def register():
-    """Register a new user."""
-    try:
-        data = UserSchema().load(request.get_json())
-    except ValidationError as err:
-        return jsonify({"message": err.messages}), 400
+    data = request.json
+    new_user = User(id=str(uuid.uuid4()), name=data['name'], email=data['email'], password=data['password'])
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify({"user_id": new_user.id, "message": "User registered successfully"}), 201
 
-    # Hash the password
-    hashed_password = generate_password_hash(data['password'])
-
-    try:
-        with get_db_cursor() as cur:
-            # Check if the user already exists
-            cur.execute('SELECT * FROM users WHERE email = %s;', (data['email'],))
-            user = cur.fetchone()
-
-            if user:
-                return jsonify({"message": "User already exists"}), 400
-
-            # Insert user into the database
-            cur.execute(
-                'INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s) RETURNING user_id;',
-                (data.get('username', ''), data['email'], hashed_password)
-            )
-            user_id = cur.fetchone()['user_id']
-            return jsonify({"message": "User registered successfully", "user_id": user_id}), 201
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
-
-# User login
-@app.route('/login', methods=['POST'])
+@app.route('/api/auth/login', methods=['POST'])
 def login():
-    """Log in a user and return a JWT token."""
-    try:
-        data = UserSchema().load(request.get_json())
-    except ValidationError as err:
-        return jsonify({"message": err.messages}), 400
+    data = request.json
+    user = User.query.filter_by(email=data['email'], password=data['password']).first()
+    if user:
+        access_token = create_access_token(identity=user.id)
+        return jsonify({"access_token": access_token, "message": "Login successful"}), 200
+    return jsonify({"message": "Invalid credentials"}), 401
 
-    try:
-        with get_db_cursor() as cur:
-            cur.execute('SELECT * FROM users WHERE email = %s;', (data['email'],))
-            user = cur.fetchone()
-
-        # Check if user exists and password matches
-        if user and check_password_hash(user['password_hash'], data['password']):
-            access_token = create_access_token(identity=user['email'])
-            return jsonify(access_token=access_token), 200
-        return jsonify({"message": "Invalid credentials"}), 401
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
-
-# Add expense (protected route)
-@app.route('/expenses', methods=['POST'])
+# Expense Tracking
+@app.route('/api/expenses', methods=['POST'])
 @jwt_required()
 def add_expense():
-    """Add a new expense for the logged-in user."""
-    try:
-        data = ExpenseSchema().load(request.get_json())
-    except ValidationError as err:
-        return jsonify({"message": err.messages}), 400
+    data = request.json
+    user_id = get_jwt_identity()
+    new_expense = Expense(id=str(uuid.uuid4()), user_id=user_id, amount=data['amount'], category=data['category'])
+    db.session.add(new_expense)
+    db.session.commit()
+    return jsonify({"expense_id": new_expense.id, "message": "Expense added successfully"}), 201
 
-    # Get the current user's email from the JWT token
-    user_email = get_jwt_identity()
-
-    # Insert expense into the database
-    try:
-        with get_db_cursor() as cur:
-            cur.execute(
-                'INSERT INTO expenses (user_email, description, amount, category) VALUES (%s, %s, %s, %s) RETURNING expense_id;',
-                (user_email, data['description'], data['amount'], data['category'])
-            )
-            expense_id = cur.fetchone()['expense_id']
-        return jsonify({"message": "Expense added successfully", "expense_id": expense_id}), 201
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
-
-# Get all expenses for the logged-in user (protected route)
-@app.route('/expenses', methods=['GET'])
+@app.route('/api/expenses', methods=['GET'])
 @jwt_required()
 def get_expenses():
-    """Get all expenses for the logged-in user."""
-    user_email = get_jwt_identity()
+    user_id = get_jwt_identity()
+    expenses = Expense.query.filter_by(user_id=user_id).all()
+    return jsonify([{"id": e.id, "amount": e.amount, "category": e.category, "date": e.date} for e in expenses]), 200
 
-    try:
-        with get_db_cursor() as cur:
-            cur.execute('SELECT * FROM expenses WHERE user_email = %s;', (user_email,))
-            expenses = cur.fetchall()
-        return jsonify(expenses), 200
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
-
-# Set budget (protected route)
-
-# Get budgets (protected route)
-@app.route('/budgets', methods=['POST'])
+# Budgeting
+@app.route('/api/budgets', methods=['POST'])
 @jwt_required()
-def set_budget():
-    """Set a monthly budget for a specific category."""
-    try:
-        data = BudgetSchema().load(request.get_json())
-    except ValidationError as err:
-        return jsonify({"message": err.messages}), 400
+def create_budget():
+    data = request.json
+    user_id = get_jwt_identity()
+    new_budget = Budget(id=str(uuid.uuid4()), user_id=user_id, category=data['category'], limit=data['limit'])
+    db.session.add(new_budget)
+    db.session.commit()
+    return jsonify({"budget_id": new_budget.id, "message": "Budget created successfully"}), 201
 
-    # Get the current user's email from the JWT token
-    user_email = get_jwt_identity()
-
-    try:
-        with get_db_cursor() as cur:
-            # Fetch the user_id for the logged-in user
-            cur.execute('SELECT user_id FROM users WHERE email = %s;', (user_email,))
-            user = cur.fetchone()
-
-            if not user:
-                return jsonify({"message": "User not found"}), 404
-
-            user_id = user['user_id']
-
-            # Insert budget into the database
-            cur.execute(
-                'INSERT INTO budgets (user_id, category, budget_limit, month) VALUES (%s, %s, %s, %s) RETURNING budget_id;',
-                (user_id, data['category'], data['budget_limit'], data['month'])
-            )
-            budget_id = cur.fetchone()['budget_id']
-        return jsonify({"message": "Budget set successfully", "budget_id": budget_id}), 201
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
-
-# Budget insights (protected route)
-@app.route('/budget-insights', methods=['GET'])
+@app.route('/api/budgets', methods=['GET'])
 @jwt_required()
-def budget_insights():
-    """Compare actual spending against the budget and provide insights."""
-    user_email = get_jwt_identity()
+def get_budgets():
+    user_id = get_jwt_identity()
+    budgets = Budget.query.filter_by(user_id=user_id).all()
+    return jsonify([{"id": b.id, "category": b.category, "limit": b.limit} for b in budgets]), 200
 
-    try:
-        with get_db_cursor() as cur:
-            # Fetch the user_id for the logged-in user
-            cur.execute('SELECT user_id FROM users WHERE email = %s;', (user_email,))
-            user = cur.fetchone()
-
-            if not user:
-                return jsonify({"message": "User not found"}), 404
-
-            user_id = user['user_id']
-
-            # Get budgets
-            cur.execute('SELECT * FROM budgets WHERE user_id = %s;', (user_id,))
-            budgets = cur.fetchall()
-
-            # Get expenses
-            cur.execute('SELECT * FROM expenses WHERE user_email = %s;', (user_email,))
-            expenses = cur.fetchall()
-
-        # Calculate total spending per category
-        spending_by_category = {}
-        for expense in expenses:
-            category = expense['category']
-            spending_by_category[category] = spending_by_category.get(category, 0) + expense['amount']
-
-        # Compare spending against budgets
-        insights = []
-        for budget in budgets:
-            category = budget['category']
-            budget_limit = budget['budget_limit']
-            actual_spending = spending_by_category.get(category, 0)
-            remaining_budget = budget_limit - actual_spending
-
-            insights.append({
-                "category": category,
-                "budget_limit": budget_limit,
-                "actual_spending": actual_spending,
-                "remaining_budget": remaining_budget
-            })
-
-        return jsonify(insights), 200
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
-
-# AI-powered insights (protected route)
-@app.route('/ai-insights', methods=['POST'])
+# AI Insights
+@app.route('/api/insights/predictions', methods=['GET'])
 @jwt_required()
-def ai_insights():
-    """Generate AI-powered financial insights for the logged-in user."""
-    user_email = get_jwt_identity()
+def get_predictions():
+    user_id = get_jwt_identity()
+    predictions = predict_future_expenses(user_id)
+    return jsonify({"predictions": predictions}), 200
 
+# Goal Setting
+@app.route('/api/goals', methods=['POST'])
+@jwt_required()
+def create_goal():
+    data = request.json
+    user_id = get_jwt_identity()
+    new_goal = Goal(id=str(uuid.uuid4()), user_id=user_id, goal_name=data['goal_name'], target_amount=data['target_amount'])
+    db.session.add(new_goal)
+    db.session.commit()
+    return jsonify({"goal_id": new_goal.id, "message": "Goal created successfully"}), 201
+
+@app.route('/api/goals', methods=['GET'])
+@jwt_required()
+def get_goals():
+    user_id = get_jwt_identity()
+    goals = Goal.query.filter_by(user_id=user_id).all()
+    return jsonify([{"id": g.id, "goal_name": g.goal_name, "target_amount": g.target_amount, "saved_amount": g.saved_amount} for g in goals]), 200
+
+# Bank Integration (Plaid)
+@app.route('/api/bank/link', methods=['POST'])
+@jwt_required()
+def link_bank_account():
+    data = request.json
     try:
-        with get_db_cursor() as cur:
-            # Fetch the user_id for the logged-in user
-            cur.execute('SELECT user_id FROM users WHERE email = %s;', (user_email,))
-            user = cur.fetchone()
-
-            if not user:
-                return jsonify({"error": "User not found"}), 404
-
-            user_id = user['user_id']
-
-            # Fetch expenses
-            cur.execute('SELECT * FROM expenses WHERE user_email = %s;', (user_email,))
-            user_expenses = cur.fetchall()
-
-            # Fetch budgets
-            cur.execute('SELECT * FROM budgets WHERE user_id = %s;', (user_id,))
-            budgets = cur.fetchall()
-
-        if not user_expenses:
-            return jsonify({"error": "No expenses found for the user"}), 404
-
-        # Create a prompt for OpenAI
-        prompt = "Analyze these expenses and provide financial advice:\n"
-        for expense in user_expenses:
-            prompt += f"- {expense['description']}: ${expense['amount']} ({expense['category']})\n"
-        prompt += "\nThe user has the following budgets:\n"
-        for budget in budgets:
-            prompt += f"- {budget['category']}: ${budget['budget_limit']} for {budget['month']}\n"
-        prompt += "\nProvide actionable advice to save money and improve financial health."
-
-        # Call OpenAI API using the new client
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful financial advisor."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=150,
-            temperature=0.7,
-        )
-
-        # Extract the response content
-        insights = response.choices[0].message.content.strip()
-        return jsonify({"insights": insights}), 200
+        response = plaid_client.link_token_create({
+            'user': {'client_user_id': get_jwt_identity()},
+            'products': ['transactions'],
+            'client_name': 'Finance Manager',
+            'country_codes': ['US'],
+            'language': 'en',
+        })
+        return jsonify({"link_token": response['link_token']}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Notifications (Twilio)
+@app.route('/api/notifications/send', methods=['POST'])
+@jwt_required()
+def send_notification():
+    data = request.json
+    user_id = get_jwt_identity()
+    
+    # Example: Send a notification if spending exceeds budget
+    budget = Budget.query.filter_by(user_id=user_id, category=data['category']).first()
+    expenses = Expense.query.filter_by(user_id=user_id, category=data['category']).all()
+    total_spent = sum(e.amount for e in expenses)
+    
+    if total_spent > budget.limit:
+        try:
+            message = twilio_client.messages.create(
+                body=f"Warning: You've exceeded your budget for {data['category']}.",
+                from_=os.getenv('TWILIO_PHONE_NUMBER'),  # Load from environment
+                to=data['phone_number']  # User's phone number
+            )
+            return jsonify({"message_id": message.sid}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    return jsonify({"message": "No notification sent."}), 200
 
+# Voice Integration (Google Assistant)
+@app.route('/api/voice/command', methods=['POST'])
+@jwt_required()
+def process_voice_command():
+    data = request.json
+    user_id = get_jwt_identity()
+    command = data['command']
+    
+    if "spent on groceries" in command:
+        expenses = Expense.query.filter_by(user_id=user_id, category='groceries').all()
+        total = sum(e.amount for e in expenses)
+        return jsonify({"response": f"You spent ${total} on groceries."}), 200
+    
+    return jsonify({"response": "I didn't understand that command."}), 200
 
-# Run the Flask app
+# Run the App
 if __name__ == '__main__':
     app.run(debug=True)
