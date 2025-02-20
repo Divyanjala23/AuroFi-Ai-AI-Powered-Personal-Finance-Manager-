@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
-import openai
+from openai import OpenAI  
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from marshmallow import Schema, fields, ValidationError
@@ -24,7 +24,7 @@ app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)  # Tokens expire aft
 jwt = JWTManager(app)
 
 # Set OpenAI API key
-openai.api_key = os.getenv('OPENAI_API_KEY')
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # Database connection function
 def get_db_connection():
@@ -304,6 +304,8 @@ def ai_insights():
         return jsonify({"insights": insights}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
 
 # Run the Flask app
 if __name__ == '__main__':
