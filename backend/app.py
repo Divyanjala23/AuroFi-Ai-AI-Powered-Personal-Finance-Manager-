@@ -26,27 +26,17 @@ jwt = JWTManager(app)
 # Set OpenAI API key
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
-import psycopg2
-
-# Database connection details
-conn = psycopg2.connect(
-    host="localhost",
-    port=5432,
-    dbname="finance_manager",
-    user="postgres",
-    password="1234"
-)
-
-# Create a cursor object
-cursor = conn.cursor()
-
-# Example: Fetch all users
-cursor.execute("SELECT * FROM users;")
-users = cursor.fetchall()
-print(users)
-
-# Close the connection
-conn.close()
+# Database connection function
+def get_db_connection():
+    conn = psycopg2.connect(
+        host="localhost",
+        port=5432,
+        dbname="finance_manager",
+        user="postgres",
+        password="1234",
+        cursor_factory=RealDictCursor
+    )
+    return conn
 
 # Context manager for database cursor
 @contextmanager
@@ -62,9 +52,9 @@ def get_db_cursor():
 
 # Marshmallow Schemas for Input Validation
 class UserSchema(Schema):
+    username = fields.Str(required=False)  # Optional field
     email = fields.Email(required=True)
     password = fields.Str(required=True)
-
 class ExpenseSchema(Schema):
     description = fields.Str(required=True)
     amount = fields.Float(required=True)
@@ -81,7 +71,6 @@ def home():
     """Home route to welcome users."""
     return "Welcome to the Finance Manager Backend!"
 
-# User registration
 @app.route('/register', methods=['POST'])
 def register():
     """Register a new user."""
@@ -93,17 +82,22 @@ def register():
     # Hash the password
     hashed_password = generate_password_hash(data['password'])
 
-    # Insert user into the database
     try:
         with get_db_cursor() as cur:
+            # Check if the user already exists
+            cur.execute('SELECT * FROM users WHERE email = %s;', (data['email'],))
+            user = cur.fetchone()
+
+            if user:
+                return jsonify({"message": "User already exists"}), 400
+
+            # Insert user into the database
             cur.execute(
-                'INSERT INTO users (email, password) VALUES (%s, %s) RETURNING id;',
-                (data['email'], hashed_password)
+                'INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s) RETURNING user_id;',
+                (data.get('username', ''), data['email'], hashed_password)
             )
-            user_id = cur.fetchone()['id']
-        return jsonify({"message": "User registered successfully", "user_id": user_id}), 201
-    except psycopg2.IntegrityError:
-        return jsonify({"message": "User already exists"}), 400
+            user_id = cur.fetchone()['user_id']
+            return jsonify({"message": "User registered successfully", "user_id": user_id}), 201
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
@@ -122,7 +116,7 @@ def login():
             user = cur.fetchone()
 
         # Check if user exists and password matches
-        if user and check_password_hash(user['password'], data['password']):
+        if user and check_password_hash(user['password_hash'], data['password']):
             access_token = create_access_token(identity=user['email'])
             return jsonify(access_token=access_token), 200
         return jsonify({"message": "Invalid credentials"}), 401
@@ -146,10 +140,10 @@ def add_expense():
     try:
         with get_db_cursor() as cur:
             cur.execute(
-                'INSERT INTO expenses (user_email, description, amount, category) VALUES (%s, %s, %s, %s) RETURNING id;',
+                'INSERT INTO expenses (user_email, description, amount, category) VALUES (%s, %s, %s, %s) RETURNING expense_id;',
                 (user_email, data['description'], data['amount'], data['category'])
             )
-            expense_id = cur.fetchone()['id']
+            expense_id = cur.fetchone()['expense_id']
         return jsonify({"message": "Expense added successfully", "expense_id": expense_id}), 201
     except Exception as e:
         return jsonify({"message": str(e)}), 500
@@ -170,6 +164,8 @@ def get_expenses():
         return jsonify({"message": str(e)}), 500
 
 # Set budget (protected route)
+
+# Get budgets (protected route)
 @app.route('/budgets', methods=['POST'])
 @jwt_required()
 def set_budget():
@@ -179,31 +175,27 @@ def set_budget():
     except ValidationError as err:
         return jsonify({"message": err.messages}), 400
 
+    # Get the current user's email from the JWT token
     user_email = get_jwt_identity()
 
     try:
         with get_db_cursor() as cur:
+            # Fetch the user_id for the logged-in user
+            cur.execute('SELECT user_id FROM users WHERE email = %s;', (user_email,))
+            user = cur.fetchone()
+
+            if not user:
+                return jsonify({"message": "User not found"}), 404
+
+            user_id = user['user_id']
+
+            # Insert budget into the database
             cur.execute(
-                'INSERT INTO budgets (user_email, category, budget_limit, month) VALUES (%s, %s, %s, %s) RETURNING id;',
-                (user_email, data['category'], data['budget_limit'], data['month'])
+                'INSERT INTO budgets (user_id, category, budget_limit, month) VALUES (%s, %s, %s, %s) RETURNING budget_id;',
+                (user_id, data['category'], data['budget_limit'], data['month'])
             )
-            budget_id = cur.fetchone()['id']
+            budget_id = cur.fetchone()['budget_id']
         return jsonify({"message": "Budget set successfully", "budget_id": budget_id}), 201
-    except Exception as e:
-        return jsonify({"message": str(e)}), 500
-
-# Get budgets (protected route)
-@app.route('/budgets', methods=['GET'])
-@jwt_required()
-def get_budgets():
-    """Get all budgets for the logged-in user."""
-    user_email = get_jwt_identity()
-
-    try:
-        with get_db_cursor() as cur:
-            cur.execute('SELECT * FROM budgets WHERE user_email = %s;', (user_email,))
-            budgets = cur.fetchall()
-        return jsonify(budgets), 200
     except Exception as e:
         return jsonify({"message": str(e)}), 500
 
