@@ -11,6 +11,16 @@ from twilio.rest import Client
 import os
 from dotenv import load_dotenv
 from flask_migrate import Migrate
+from flask import Flask
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+@app.route('/')
+def home():
+    return "Welcome to the Finance Manager API!"
+
 
 # Load environment variables from .env file
 load_dotenv()

@@ -11,7 +11,7 @@ function App() {
 
   // Login function
   const handleLogin = async () => {
-    const response = await fetch('http://127.0.0.1:5000/login', {
+    const response = await fetch('http://127.0.0.1:5000/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -29,7 +29,7 @@ function App() {
   // Fetch expenses
   const fetchExpenses = async () => {
     const token = localStorage.getItem('token');
-    const response = await fetch('http://127.0.0.1:5000/expenses', {
+    const response = await fetch('http://127.0.0.1:5000/api/expenses', {
       headers: { 'Authorization': `Bearer ${token}` },
     });
     const data = await response.json();
@@ -39,7 +39,7 @@ function App() {
   // Add expense
   const handleAddExpense = async () => {
     const token = localStorage.getItem('token');
-    const response = await fetch('http://127.0.0.1:5000/expenses', {
+    const response = await fetch('http://127.0.0.1:5000/api/expenses', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
