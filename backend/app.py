@@ -5,14 +5,11 @@ from datetime import datetime
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 import uuid
-import plaid
-from plaid.api import plaid_api
-from twilio.rest import Client
 import os
 from dotenv import load_dotenv
 from flask_migrate import Migrate
-from flask import Flask
 from flask_cors import CORS
+from faker import Faker  # For generating mock data
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -21,11 +18,8 @@ CORS(app)  # Enable CORS for all routes
 def home():
     return "Welcome to the Finance Manager API!"
 
-
 # Load environment variables from .env file
 load_dotenv()
-
-app = Flask(__name__)
 
 # Configure PostgreSQL Database
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://myuser:mypassword@localhost/finance_db')
@@ -39,20 +33,7 @@ migrate = Migrate(app, db)  # Initialize Flask-Migrate
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')  # Load secret key from environment
 jwt = JWTManager(app)
 
-# Plaid Configuration
-plaid_config = plaid.Configuration(
-    host=plaid.Environment.Sandbox,  # Use Sandbox for testing
-    api_key={
-        'clientId': os.getenv('PLAID_CLIENT_ID'),  # Load from environment
-        'secret': os.getenv('PLAID_SECRET'),       # Load from environment
-    }
-)
-plaid_client = plaid_api.PlaidApi(plaid.ApiClient(plaid_config))
-
-# Twilio Configuration
-twilio_client = Client(os.getenv('TWILIO_ACCOUNT_SID'), os.getenv('TWILIO_AUTH_TOKEN'))  # Load from environment
-
-# Models
+# Models (same as before)
 class User(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
     name = db.Column(db.String(100), nullable=False)
@@ -79,7 +60,7 @@ class Goal(db.Model):
     target_amount = db.Column(db.Float, nullable=False)
     saved_amount = db.Column(db.Float, default=0.0)
 
-# Helper Functions
+# Helper Functions (same as before)
 def predict_future_expenses(user_id):
     """Improved AI model to predict future expenses using Random Forest."""
     expenses = Expense.query.filter_by(user_id=user_id).all()
@@ -99,7 +80,6 @@ def predict_future_expenses(user_id):
     predictions = model.predict(future_X)
 
     return predictions.tolist()
-
 
 # API Endpoints
 
@@ -183,24 +163,59 @@ def get_goals():
     goals = Goal.query.filter_by(user_id=user_id).all()
     return jsonify([{"id": g.id, "goal_name": g.goal_name, "target_amount": g.target_amount, "saved_amount": g.saved_amount} for g in goals]), 200
 
-# Bank Integration (Plaid)
-@app.route('/api/bank/link', methods=['POST'])
-@jwt_required()
-def link_bank_account():
-    data = request.json
-    try:
-        response = plaid_client.link_token_create({
-            'user': {'client_user_id': get_jwt_identity()},
-            'products': ['transactions'],
-            'client_name': 'Finance Manager',
-            'country_codes': ['US'],
-            'language': 'en',
-        })
-        return jsonify({"link_token": response['link_token']}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+# Mock Bank Integration
+fake = Faker()
 
-# Notifications (Twilio)
+@app.route('/api/mock/bank/link', methods=['POST'])
+@jwt_required()
+def mock_link_bank_account():
+    # Simulate linking a bank account
+    return jsonify({
+        "link_token": "mock_link_token_12345",
+        "message": "Mock bank account linked successfully"
+    }), 200
+
+@app.route('/api/mock/bank/accounts', methods=['GET'])
+@jwt_required()
+def mock_get_bank_accounts():
+    # Simulate fetching bank accounts
+    user_id = get_jwt_identity()
+    return jsonify({
+        "accounts": [
+            {
+                "account_id": "mock_account_123",
+                "name": "Savings Account",
+                "balance": 1000.00,
+                "currency": "LKR"
+            },
+            {
+                "account_id": "mock_account_456",
+                "name": "Checking Account",
+                "balance": 500.00,
+                "currency": "LKR"
+            }
+        ],
+        "message": "Mock bank accounts fetched successfully"
+    }), 200
+
+@app.route('/api/mock/bank/transactions', methods=['GET'])
+@jwt_required()
+def mock_get_transactions():
+    # Simulate fetching transactions
+    user_id = get_jwt_identity()
+    transactions = [{
+        "transaction_id": fake.uuid4(),
+        "amount": round(fake.random_number(digits=3) / 100, 2),  # Random amount
+        "date": fake.date_this_year().isoformat(),  # Random date
+        "description": fake.sentence(),  # Random description
+        "category": fake.random_element(elements=("Groceries", "Dining", "Transport", "Entertainment"))
+    } for _ in range(10)]  # Generate 10 random transactions
+    return jsonify({
+        "transactions": transactions,
+        "message": "Mock transactions fetched successfully"
+    }), 200
+
+# Mock Notification Endpoint
 @app.route('/api/notifications/send', methods=['POST'])
 @jwt_required()
 def send_notification():
@@ -213,17 +228,15 @@ def send_notification():
     total_spent = sum(e.amount for e in expenses)
     
     if total_spent > budget.limit:
-        try:
-            message = twilio_client.messages.create(
-                body=f"Warning: You've exceeded your budget for {data['category']}.",
-                from_=os.getenv('TWILIO_PHONE_NUMBER'),  # Load from environment
-                to=data['phone_number']  # User's phone number
-            )
-            return jsonify({"message_id": message.sid}), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        # Simulate sending an SMS
+        return jsonify({
+            "message_id": "mock_message_id_12345",
+            "message": f"Mock SMS sent: You've exceeded your budget for {data['category']}."
+        }), 200
     
     return jsonify({"message": "No notification sent."}), 200
+
+
 
 # Voice Integration (Google Assistant)
 @app.route('/api/voice/command', methods=['POST'])
