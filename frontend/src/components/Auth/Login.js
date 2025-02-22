@@ -62,43 +62,43 @@ const Login = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-teal-50 to-emerald-50 p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
-          <p className="text-gray-500 mt-2">Enter your credentials to access your account</p>
+          <h2 className="text-3xl font-bold text-teal-800">Welcome Back</h2>
+          <p className="text-teal-600 mt-2">Enter your credentials to access your account</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
           {error && (
-            <div className="bg-red-50 text-red-500 p-4 rounded-md text-sm">
+            <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm">
               {error}
             </div>
           )}
 
           <div className="space-y-4">
-            <div className="relative">
-              <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+            <div className="relative group">
+              <User className="absolute left-3 top-3 h-5 w-5 text-teal-500" />
               <input
                 type="email"
                 name="email"
                 placeholder="Email"
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 bg-white border-2 border-teal-100 rounded-lg focus:outline-none focus:border-teal-500 hover:border-teal-200 transition-colors"
                 disabled={isLoading}
               />
             </div>
 
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+            <div className="relative group">
+              <Lock className="absolute left-3 top-3 h-5 w-5 text-teal-500" />
               <input
                 type="password"
                 name="password"
                 placeholder="Password"
                 value={formData.password}
                 onChange={handleChange}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 bg-white border-2 border-teal-100 rounded-lg focus:outline-none focus:border-teal-500 hover:border-teal-200 transition-colors"
                 disabled={isLoading}
               />
             </div>
@@ -107,7 +107,7 @@ const Login = ({ onLogin }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+            className="w-full bg-teal-600 text-white py-3 px-4 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 font-medium shadow-md"
           >
             {isLoading ? (
               <div className="flex items-center justify-center">
@@ -119,16 +119,16 @@ const Login = ({ onLogin }) => {
             )}
           </button>
 
-          <div className="space-y-2 text-center">
-            <div className="text-sm text-gray-500">
+          <div className="space-y-3 text-center">
+            <div className="text-sm text-teal-700">
               Don't have an account?{' '}
-              <button type="button" className="text-blue-600 hover:underline">
+              <button type="button" className="text-teal-600 hover:text-teal-800 font-medium">
                 Sign up
               </button>
             </div>
             <button
               type="button"
-              className="text-sm text-blue-600 hover:underline"
+              className="text-sm text-teal-600 hover:text-teal-800 font-medium"
             >
               Forgot your password?
             </button>
