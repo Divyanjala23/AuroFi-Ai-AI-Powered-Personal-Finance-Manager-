@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
-import { User, Mail, Lock, Loader2 } from 'lucide-react';
+import { User, Lock, Mail, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const Register = ({ onRegister }) => {
+const Register = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: ''
+    password: '',
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
     setError('');
   };
@@ -27,16 +29,12 @@ const Register = ({ onRegister }) => {
       setError('Please enter a valid email address');
       return false;
     }
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return false;
-    }
     return true;
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setIsLoading(true);
@@ -57,9 +55,10 @@ const Register = ({ onRegister }) => {
         throw new Error(data.message || 'Registration failed');
       }
 
-      onRegister();
+      navigate('/login');
     } catch (error) {
       setError(error.message || 'An error occurred during registration');
+      console.error('Registration error:', error); // Log the error for debugging
     } finally {
       setIsLoading(false);
     }
@@ -69,8 +68,8 @@ const Register = ({ onRegister }) => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-teal-50 to-emerald-50 p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-teal-800">Create Account</h2>
-          <p className="text-teal-600 mt-2">Enter your details to register</p>
+          <h2 className="text-3xl font-bold text-teal-800">Create an Account</h2>
+          <p className="text-teal-600 mt-2">Get started with your financial journey</p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-6">
@@ -86,7 +85,7 @@ const Register = ({ onRegister }) => {
               <input
                 type="text"
                 name="name"
-                placeholder="Full Name"
+                placeholder="Name"
                 value={formData.name}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-3 bg-white border-2 border-teal-100 rounded-lg focus:outline-none focus:border-teal-500 hover:border-teal-200 transition-colors"
@@ -129,20 +128,22 @@ const Register = ({ onRegister }) => {
             {isLoading ? (
               <div className="flex items-center justify-center">
                 <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
-                Creating account...
+                Registering...
               </div>
             ) : (
-              'Create Account'
+              'Register'
             )}
           </button>
 
-          <div className="space-y-3 text-center">
-            <div className="text-sm text-teal-700">
-              Already have an account?{' '}
-              <button type="button" className="text-teal-600 hover:text-teal-800 font-medium">
-                Sign in
-              </button>
-            </div>
+          <div className="text-center text-sm text-teal-700">
+            Already have an account?{' '}
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="text-teal-600 hover:text-teal-800 font-medium"
+            >
+              Sign in
+            </button>
           </div>
         </form>
       </div>
