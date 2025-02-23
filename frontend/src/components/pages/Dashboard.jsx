@@ -1,10 +1,85 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, TrendingUp, CreditCard, Target, AlertCircle } from 'lucide-react';
+import { Loader2, TrendingUp, CreditCard, Target, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import BudgetCard from '../cards/BudgetCard';
 import GoalCard from '../cards/GoalCard';
 import InsightChart from '../cards/InsightChart';
 import ExpenseList from '../cards/ExpenseList';
+
+const CardCarousel = ({ items, renderItem, title, itemsPerPage = 3 }) => {
+  const [currentPage, setCurrentPage] = useState(0);
+  const totalPages = Math.ceil(items.length / itemsPerPage);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentPage((current) => (current + 1) % totalPages);
+    }, 5000); // Auto-swipe every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [totalPages]);
+
+  const handlePrevious = () => {
+    setCurrentPage((current) => (current - 1 + totalPages) % totalPages);
+  };
+
+  const handleNext = () => {
+    setCurrentPage((current) => (current + 1) % totalPages);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-teal-800">{title}</h2>
+        <div className="flex gap-2">
+          <button 
+            onClick={handlePrevious}
+            className="p-1 rounded-full hover:bg-teal-50 text-teal-600"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button 
+            onClick={handleNext}
+            className="p-1 rounded-full hover:bg-teal-50 text-teal-600"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+      
+      <div className="relative overflow-hidden">
+        <div 
+          className="transition-transform duration-500 ease-in-out"
+          style={{ transform: `translateX(-${currentPage * 100}%)` }}
+        >
+          <div className="flex">
+            {Array.from({ length: totalPages }).map((_, pageIndex) => (
+              <div key={pageIndex} className="w-full flex-shrink-0">
+                <div className="space-y-4">
+                  {items
+                    .slice(pageIndex * itemsPerPage, (pageIndex + 1) * itemsPerPage)
+                    .map(renderItem)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Carousel Indicators */}
+      <div className="flex justify-center space-x-2 mt-4">
+        {Array.from({ length: totalPages }).map((_, index) => (
+          <button
+            key={index}
+            className={`w-2 h-2 rounded-full transition-colors duration-200 ${
+              currentPage === index ? 'bg-teal-600' : 'bg-teal-200'
+            }`}
+            onClick={() => setCurrentPage(index)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const Dashboard = () => {
   const [expenses, setExpenses] = useState([]);
@@ -53,6 +128,26 @@ const Dashboard = () => {
 
     fetchData();
   }, [navigate]);
+
+  const handleDeleteGoal = async (goalId) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`http://localhost:5000/api/goals/${goalId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete goal');
+      }
+      setGoals(goals.filter((goal) => goal.id !== goalId));
+    } catch (error) {
+      console.error('Error deleting goal:', error);
+      setError('Failed to delete goal. Please try again.');
+    }
+  };
 
   const LoadingState = () => (
     <div className="flex items-center justify-center h-[calc(100vh-64px)]">
@@ -108,29 +203,32 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Left Column */}
         <div className="space-y-6">
-          <ExpenseList expenses={expenses.slice(0, 5)} />
+          <div className="bg-white rounded-2xl shadow-sm p-6">
+            <h2 className="text-xl font-bold text-teal-800 mb-4">Recent Expenses</h2>
+            <ExpenseList expenses={expenses.slice(0, 5)} />
+          </div>
           <InsightChart predictions={predictions} />
         </div>
 
-        {/* Right Column */}
+        {/* Right Column - Swipeable Budgets and Goals */}
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h2 className="text-xl font-bold text-teal-800 mb-4">Active Budgets</h2>
-            <div className="space-y-4">
-              {budgets.slice(0, 3).map((budget) => (
-                <BudgetCard key={budget.id} budget={budget} />
-              ))}
-            </div>
-          </div>
+          <CardCarousel 
+            items={budgets}
+            title="Active Budgets"
+            itemsPerPage={3}
+            renderItem={(budget) => (
+              <BudgetCard key={budget.id} budget={budget} />
+            )}
+          />
 
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h2 className="text-xl font-bold text-teal-800 mb-4">Financial Goals</h2>
-            <div className="space-y-4">
-              {goals.slice(0, 3).map((goal) => (
-                <GoalCard key={goal.id} goal={goal} />
-              ))}
-            </div>
-          </div>
+          <CardCarousel 
+            items={goals}
+            title="Financial Goals"
+            itemsPerPage={2}
+            renderItem={(goal) => (
+              <GoalCard key={goal.id} goal={goal} onDelete={handleDeleteGoal} />
+            )}
+          />
         </div>
       </div>
 

@@ -1,9 +1,17 @@
 import React from 'react';
-import { Target, TrendingUp, Calendar, Award, Sparkles } from 'lucide-react';
+import { Target, TrendingUp, Sparkles, Calendar, Trash2 } from 'lucide-react';
 
-const GoalCard = ({ goal }) => {
-  const progress = (goal.saved_amount / goal.target_amount) * 100;
-  const remaining = goal.target_amount - goal.saved_amount;
+const GoalCard = ({ goal, onDelete }) => {
+  const {
+    goal_name = 'Unnamed Goal',
+    target_amount = 0,
+    saved_amount = 0,
+    target_date = null,  // Add this line
+  } = goal || {};
+
+  // Calculate progress percentage
+  const progress = (saved_amount / target_amount) * 100 || 0;
+  const remaining = target_amount - saved_amount;
   const isComplete = progress >= 100;
 
   const getGoalIcon = (goalName) => {
@@ -16,7 +24,7 @@ const GoalCard = ({ goal }) => {
       'Retirement': '👴',
       'Wedding': '💍',
       'Business': '💼',
-      default: '🎯'
+      default: '🎯',
     };
     return goalIcons[goalName] || goalIcons.default;
   };
@@ -26,21 +34,22 @@ const GoalCard = ({ goal }) => {
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="text-2xl bg-teal-50 p-3 rounded-xl">
-            {getGoalIcon(goal.goal_name)}
+            {getGoalIcon(goal_name)}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-teal-800">{goal.goal_name}</h2>
+            <h2 className="text-xl font-bold text-teal-800">{goal_name}</h2>
             <div className="flex items-center gap-2 mt-1">
               <Target className="h-4 w-4 text-teal-600" />
               <span className="text-sm text-teal-600">Financial Goal</span>
             </div>
           </div>
         </div>
-        {isComplete && (
-          <div className="animate-bounce">
-            <Award className="h-6 w-6 text-yellow-500" />
-          </div>
-        )}
+        <button
+          onClick={() => onDelete(goal.id)}
+          className="text-red-500 hover:text-red-700 transition-colors duration-200"
+        >
+          <Trash2 className="h-5 w-5" />
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -51,7 +60,7 @@ const GoalCard = ({ goal }) => {
               <span className="text-sm text-teal-600">Target</span>
             </div>
             <span className="text-lg font-bold text-teal-800">
-              ${goal.target_amount.toLocaleString()}
+              ${target_amount.toLocaleString()}
             </span>
           </div>
 
@@ -61,7 +70,7 @@ const GoalCard = ({ goal }) => {
               <span className="text-sm text-teal-600">Saved</span>
             </div>
             <span className="text-lg font-bold text-teal-800">
-              ${goal.saved_amount.toLocaleString()}
+              ${saved_amount.toLocaleString()}
             </span>
           </div>
         </div>
@@ -91,13 +100,13 @@ const GoalCard = ({ goal }) => {
                 ${Math.max(remaining, 0).toLocaleString()}
               </p>
             </div>
-            {goal.target_date && (
+            {target_date && (  // Add this block
               <div className="text-right">
                 <div className="flex items-center gap-1 text-sm text-teal-600">
                   <Calendar className="h-4 w-4" />
                   <span>Target Date</span>
                 </div>
-                <p className="font-medium text-teal-800">{goal.target_date}</p>
+                <p className="font-medium text-teal-800">{new Date(target_date).toLocaleDateString()}</p>
               </div>
             )}
           </div>

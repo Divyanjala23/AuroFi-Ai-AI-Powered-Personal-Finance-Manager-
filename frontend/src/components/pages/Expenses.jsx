@@ -23,6 +23,7 @@ const Expenses = () => {
     }
   }, [showAddExpenseForm]);
 
+  // Fetch expenses from the API
   useEffect(() => {
     const fetchExpenses = async () => {
       const token = localStorage.getItem('token');
@@ -81,6 +82,29 @@ const Expenses = () => {
     } catch (error) {
       console.error('Error adding expense:', error);
       setError('Failed to add expense. Please try again.');
+    }
+  };
+
+  // Handle deleting an expense
+  const handleDeleteExpense = async (expenseId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/expenses/${expenseId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete expense');
+      }
+
+      // Remove the deleted expense from the state
+      setExpenses(expenses.filter((expense) => expense.id !== expenseId));
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      setError('Failed to delete expense. Please try again.');
     }
   };
 
@@ -204,7 +228,7 @@ const Expenses = () => {
 
           {/* Expense List */}
           <div className="bg-white rounded-xl shadow-sm">
-            <ExpenseList expenses={filteredExpenses} />
+            <ExpenseList expenses={filteredExpenses} onDelete={handleDeleteExpense} />
           </div>
         </div>
       </div>

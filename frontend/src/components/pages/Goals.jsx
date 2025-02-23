@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import GoalCard from '../cards/GoalCard';
 import { Loader2 } from 'lucide-react';
+import GoalCard from '../cards/GoalCard';
 import AddGoalForm from '../cards/AddGoalForm';
 
 const Goals = () => {
@@ -11,6 +11,16 @@ const Goals = () => {
   const [showAddGoalForm, setShowAddGoalForm] = useState(false);
   const navigate = useNavigate();
 
+  // Disable scrolling on the main page when the modal is open
+  useEffect(() => {
+    if (showAddGoalForm) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+  }, [showAddGoalForm]);
+
+  // Fetch goals from the backend
   useEffect(() => {
     const fetchGoals = async () => {
       const token = localStorage.getItem('token');
@@ -42,6 +52,7 @@ const Goals = () => {
     fetchGoals();
   }, [navigate]);
 
+  // Handle adding a new goal
   const handleAddGoal = async (newGoal) => {
     try {
       const token = localStorage.getItem('token');
@@ -64,6 +75,29 @@ const Goals = () => {
     } catch (error) {
       console.error('Error adding goal:', error);
       setError('Failed to add goal. Please try again.');
+    }
+  };
+
+  // Handle deleting a goal
+  const handleDeleteGoal = async (goalId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/goals/${goalId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete goal');
+      }
+
+      // Remove the deleted goal from the state
+      setGoals(goals.filter((goal) => goal.id !== goalId));
+    } catch (error) {
+      console.error('Error deleting goal:', error);
+      setError('Failed to delete goal. Please try again.');
     }
   };
 
@@ -94,21 +128,26 @@ const Goals = () => {
               </div>
             )}
 
+            {/* Always show the "Create New Goal" button */}
+            <div className="mb-6">
+              <button
+                className="bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition-colors duration-200 font-medium"
+                onClick={() => setShowAddGoalForm(true)}
+              >
+                Create New Goal
+              </button>
+            </div>
+
+            {/* Display goals */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {goals.length === 0 ? (
                 <div className="col-span-full text-center py-12">
                   <p className="text-teal-600 text-lg">No goals found. Start creating your goals today!</p>
-                  <button
-                    className="mt-4 bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition-colors duration-200 font-medium"
-                    onClick={() => setShowAddGoalForm(true)}
-                  >
-                    Create New Goal
-                  </button>
                 </div>
               ) : (
                 goals.map((goal) => (
                   <div key={goal.id} className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-200">
-                    <GoalCard goal={goal} />
+                    <GoalCard goal={goal} onDelete={handleDeleteGoal} />
                   </div>
                 ))
               )}

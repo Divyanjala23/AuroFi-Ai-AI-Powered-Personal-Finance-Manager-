@@ -1,8 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { DollarSign, Calendar, Clock, Search } from 'lucide-react';
+import { DollarSign, Calendar, Clock, Search, Trash2 } from 'lucide-react';
 
-const ExpenseList = ({ expenses = [] }) => {
+const ExpenseList = ({ expenses = [], onDelete }) => {
   if (!Array.isArray(expenses)) {
     console.error('Expenses is not an array:', expenses);
     return null;
@@ -75,13 +75,21 @@ const ExpenseList = ({ expenses = [] }) => {
               </div>
             </div>
 
-            <div className="flex flex-col items-end">
-              <span className="font-bold text-teal-800">
-                ${expense.amount.toLocaleString()}
-              </span>
-              {expense.note && (
-                <span className="text-sm text-teal-600 mt-1">{expense.note}</span>
-              )}
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col items-end">
+                <span className="font-bold text-teal-800">
+                  ${expense.amount.toLocaleString()}
+                </span>
+                {expense.note && (
+                  <span className="text-sm text-teal-600 mt-1">{expense.note}</span>
+                )}
+              </div>
+              <button
+                onClick={() => onDelete(expense.id)}
+                className="text-red-500 hover:text-red-700 transition-colors"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
             </div>
           </div>
         ))}
@@ -117,6 +125,7 @@ ExpenseList.propTypes = {
       note: PropTypes.string,
     })
   ),
+  onDelete: PropTypes.func.isRequired,
 };
 
 export default ExpenseList;

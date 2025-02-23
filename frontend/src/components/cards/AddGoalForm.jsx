@@ -14,8 +14,7 @@ const AddGoalForm = ({ onSubmit, onClose }) => {
   const [formData, setFormData] = useState({
     goal_name: '',
     target_amount: '',
-    target_date: '',
-    description: '',
+    target_date: '',  // Add this line
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,17 +27,16 @@ const AddGoalForm = ({ onSubmit, onClose }) => {
     setError('');
   };
 
-  const handleGoalSelect = (goalName, description = '') => {
+  const handleGoalSelect = (goalName) => {
     setFormData({
       ...formData,
       goal_name: goalName,
-      description: description
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.goal_name || !formData.target_amount) {
+    if (!formData.goal_name || !formData.target_amount || !formData.target_date) {  // Add validation for target_date
       setError('Please fill in all required fields');
       return;
     }
@@ -49,8 +47,7 @@ const AddGoalForm = ({ onSubmit, onClose }) => {
       setFormData({ 
         goal_name: '', 
         target_amount: '', 
-        target_date: '',
-        description: '' 
+        target_date: '',  // Reset target_date
       });
       setError('');
     } catch (err) {
@@ -89,7 +86,7 @@ const AddGoalForm = ({ onSubmit, onClose }) => {
                 <button
                   key={goal.id}
                   type="button"
-                  onClick={() => handleGoalSelect(goal.name, goal.description)}
+                  onClick={() => handleGoalSelect(goal.name)}
                   className={`p-3 rounded-lg border-2 transition-all duration-200 ${
                     formData.goal_name === goal.name
                       ? 'border-teal-500 bg-teal-50 text-teal-700'
@@ -141,17 +138,6 @@ const AddGoalForm = ({ onSubmit, onClose }) => {
                 value={formData.target_date}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-3 bg-white border-2 border-teal-100 rounded-lg focus:outline-none focus:border-teal-500 hover:border-teal-200 transition-colors"
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="relative group">
-              <textarea
-                name="description"
-                placeholder="Goal Description (optional)"
-                value={formData.description}
-                onChange={handleChange}
-                className="w-full pl-4 pr-4 py-3 bg-white border-2 border-teal-100 rounded-lg focus:outline-none focus:border-teal-500 hover:border-teal-200 transition-colors resize-none h-24"
                 disabled={isLoading}
               />
             </div>

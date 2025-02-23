@@ -10,18 +10,11 @@ const Budgets = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState(null);
   const [showAddBudgetForm, setShowAddBudgetForm] = useState(false);
-  const [filterCriteria, setFilterCriteria] = useState({});
+  const [filterCriteria, setFilterCriteria] = useState({ category: '', amount: '' });
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const navigate = useNavigate();
 
-  // Disable scrolling on the main page when the modal is open
-  useEffect(() => {
-    if (showAddBudgetForm) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-  }, [showAddBudgetForm]);
-
+  // Fetch budgets from the backend
   useEffect(() => {
     const fetchBudgets = async () => {
       const token = localStorage.getItem('token');
@@ -43,7 +36,7 @@ const Budgets = () => {
         }
 
         const data = await response.json();
-        console.log('Backend Response:', data);
+        console.log('Backend Response:', data); // Debugging
 
         if (Array.isArray(data)) {
           setBudgets(data);
@@ -62,6 +55,7 @@ const Budgets = () => {
     fetchBudgets();
   }, [navigate]);
 
+  // Handle adding a new budget
   const handleAddBudget = async (newBudget) => {
     try {
       const token = localStorage.getItem('token');
@@ -79,7 +73,9 @@ const Budgets = () => {
       }
 
       const addedBudget = await response.json();
-      setBudgets([...budgets, addedBudget]);
+      console.log('Added Budget:', addedBudget); // Debugging
+
+      setBudgets((prevBudgets) => [...prevBudgets, addedBudget]);
       setShowAddBudgetForm(false);
     } catch (error) {
       console.error('Error adding budget:', error);
@@ -87,22 +83,45 @@ const Budgets = () => {
     }
   };
 
+  // Handle deleting a budget
+  const handleDeleteBudget = async (budgetId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/budgets/${budgetId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete budget');
+      }
+
+      setBudgets((prevBudgets) => prevBudgets.filter((budget) => budget.id !== budgetId));
+    } catch (error) {
+      console.error('Error deleting budget:', error);
+      setError('Failed to delete budget. Please try again.');
+    }
+  };
+
+  // Filter budgets based on search term and filter criteria
   const filteredBudgets = Array.isArray(budgets)
     ? budgets.filter((budget) => {
         const matchesSearch = budget.name?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = Object.keys(filterCriteria).every((key) => {
-          if (key === 'category') {
-            return budget.category === filterCriteria[key];
-          }
-          if (key === 'amount') {
-            return budget.amount <= filterCriteria[key];
-          }
-          return true;
-        });
-        return matchesSearch && matchesFilter;
+        const matchesCategory = filterCriteria.category
+          ? budget.category === filterCriteria.category
+          : true;
+        const matchesAmount = filterCriteria.amount
+          ? budget.amount <= parseFloat(filterCriteria.amount)
+          : true;
+        return matchesSearch && matchesCategory && matchesAmount;
       })
     : [];
 
+  console.log('Filtered Budgets:', filteredBudgets); // Debugging
+
+  // Loading state
   const LoadingState = () => (
     <div className="flex flex-col items-center justify-center min-h-[400px] text-teal-600">
       <Loader2 className="h-8 w-8 animate-spin mb-4" />
@@ -110,6 +129,7 @@ const Budgets = () => {
     </div>
   );
 
+  // Empty state
   const EmptyState = () => (
     <div className="flex flex-col items-center justify-center min-h-[400px] text-teal-600">
       <div className="bg-teal-50 p-4 rounded-full mb-4">
@@ -160,15 +180,7 @@ const Budgets = () => {
                   />
                 </div>
                 <button
-                  onClick={() => {
-                    const category = prompt('Enter category to filter by:');
-                    const amount = prompt('Enter maximum amount to filter by:');
-                    setFilterCriteria({
-                      ...filterCriteria,
-                      category,
-                      amount: amount ? parseFloat(amount) : null,
-                    });
-                  }}
+                  onClick={() => setShowFilterModal(true)}
                   className="flex items-center gap-2 px-4 py-2 border-2 border-teal-100 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors"
                 >
                   <Filter className="h-5 w-5" />
@@ -192,7 +204,11 @@ const Budgets = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredBudgets.map((budget) => (
-                  <BudgetCard key={budget.id} budget={budget} />
+                  <BudgetCard
+                    key={budget.id}
+                    budget={budget}
+                    onDelete={handleDeleteBudget}
+                  />
                 ))}
               </div>
             )}
@@ -207,6 +223,62 @@ const Budgets = () => {
             onSubmit={handleAddBudget}
             onClose={() => setShowAddBudgetForm(false)}
           />
+        </div>
+      )}
+
+      {/* Filter Modal */}
+      {showFilterModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+          <div className="bg-white p-6 rounded-xl w-full max-w-md">
+            <h2 className="text-xl font-bold text-teal-800 mb-4">Filter Budgets</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-teal-600">Category</label>
+                <select
+                  value={filterCriteria.category}
+                  onChange={(e) =>
+                    setFilterCriteria({ ...filterCriteria, category: e.target.value })
+                  }
+                  className="w-full px-4 py-2 rounded-lg border-2 border-teal-100 focus:border-teal-500 focus:outline-none"
+                >
+                  <option value="">All Categories</option>
+                  {['Housing', 'Food', 'Transport', 'Utilities', 'Entertainment', 'Shopping', 'Healthcare', 'Savings'].map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-teal-600">Maximum Amount</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1000"
+                  value={filterCriteria.amount || 0}
+                  onChange={(e) =>
+                    setFilterCriteria({ ...filterCriteria, amount: e.target.value })
+                  }
+                  className="w-full"
+                />
+                <p className="text-sm text-teal-600">Selected: ${filterCriteria.amount || 0}</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="px-4 py-2 text-teal-600 hover:bg-teal-50 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

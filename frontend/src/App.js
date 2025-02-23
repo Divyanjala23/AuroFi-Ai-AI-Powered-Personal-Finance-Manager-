@@ -7,7 +7,20 @@ import Expenses from './components/pages/Expenses';
 import Budgets from './components/pages/Budgets';
 import Goals from './components/pages/Goals';
 import Insights from './components/pages/Insights';
+import Profile from './components/pages/Profile';
 import Sidebar from './components/cards/Sidebar';
+
+import ChangePassword from './components/features/ChangePassword';
+import EmailNotifications from './components/features/EmailNotifications';
+import LoginHistory from './components/features/LoginHistory';
+import PrivacySettings from './components/features/PrivacySettings';
+import Subscription from './components/features/Subscription';
+import BillingHistory from './components/features/BillingHistory';
+import ContactSupport from './components/features/ContactSupport';
+import Feedback from './components/features/Feedback';
+import SocialLinks from './components/features/SocialLinks';
+import ReferralProgram from './components/features/ReferralProgram';
+
 
 const App = () => {
   const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem('token'));
@@ -42,7 +55,7 @@ const App = () => {
 
         <div className="flex-1 p-4">
           <Routes>
-            {/* Route for Login */}
+            {/* Public Routes */}
             <Route
               path="/login"
               element={
@@ -53,8 +66,6 @@ const App = () => {
                 )
               }
             />
-
-            {/* Route for Register */}
             <Route
               path="/register"
               element={
@@ -66,7 +77,7 @@ const App = () => {
               }
             />
 
-            {/* Route for Dashboard */}
+            {/* Protected Routes */}
             <Route
               path="/dashboard"
               element={
@@ -77,8 +88,6 @@ const App = () => {
                 )
               }
             />
-
-            {/* Route for Expenses */}
             <Route
               path="/expenses"
               element={
@@ -89,8 +98,6 @@ const App = () => {
                 )
               }
             />
-
-            {/* Route for Budgets */}
             <Route
               path="/budgets"
               element={
@@ -101,8 +108,6 @@ const App = () => {
                 )
               }
             />
-
-            {/* Route for Goals */}
             <Route
               path="/goals"
               element={
@@ -113,13 +118,123 @@ const App = () => {
                 )
               }
             />
-
-            {/* Route for Insights */}
             <Route
               path="/insights"
               element={
                 loggedIn ? (
                   <Insights />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                loggedIn ? (
+                  <Profile />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+
+            {/* New Feature Routes */}
+            <Route
+              path="/change-password"
+              element={
+                loggedIn ? (
+                  <ChangePassword />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/notifications"
+              element={
+                loggedIn ? (
+                  <EmailNotifications />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/login-history"
+              element={
+                loggedIn ? (
+                  <LoginHistory />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/privacy-settings"
+              element={
+                loggedIn ? (
+                  <PrivacySettings />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/subscription"
+              element={
+                loggedIn ? (
+                  <Subscription />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/billing-history"
+              element={
+                loggedIn ? (
+                  <BillingHistory />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/contact-support"
+              element={
+                loggedIn ? (
+                  <ContactSupport />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/feedback"
+              element={
+                loggedIn ? (
+                  <Feedback />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/social-links"
+              element={
+                loggedIn ? (
+                  <SocialLinks />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
+            <Route
+              path="/referral-program"
+              element={
+                loggedIn ? (
+                  <ReferralProgram />
                 ) : (
                   <Navigate to="/login" replace />
                 )

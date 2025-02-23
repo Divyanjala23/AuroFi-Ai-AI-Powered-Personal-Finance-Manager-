@@ -1,20 +1,49 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Receipt, 
-  PieChart, 
-  Target, 
+import {
+  LayoutDashboard,
+  Receipt,
+  PieChart,
+  Target,
   LineChart,
   Settings,
   HelpCircle,
   User,
-  LogOut // Add the LogOut icon from lucide-react
+  LogOut
 } from 'lucide-react';
 
 const Sidebar = ({ onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [user, setUser] = useState({ name: 'Loading...', email: '' });
+
+  // Fetch user data
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:5000/api/user', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch user data');
+        }
+
+        const data = await response.json();
+        setUser(data);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    fetchUserData();
+  }, [navigate]);
 
   const isActiveRoute = (path) => {
     return location.pathname === path;
@@ -64,15 +93,18 @@ const Sidebar = ({ onLogout }) => {
 
       {/* User Profile */}
       <div className="px-6 mb-6">
-        <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5">
+        <button
+          onClick={() => navigate('/profile')}
+          className="w-full flex items-center gap-3 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200"
+        >
           <div className="bg-teal-600 p-2 rounded-lg">
             <User className="h-5 w-5 text-white" />
           </div>
-          <div>
-            <h3 className="font-medium text-white">John Doe</h3>
-            <p className="text-sm text-teal-200">Premium Account</p>
+          <div className="text-left">
+            <h3 className="font-medium text-white">{user.name}</h3>
+            <p className="text-sm text-teal-200">{user.email}</p>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Main Menu */}

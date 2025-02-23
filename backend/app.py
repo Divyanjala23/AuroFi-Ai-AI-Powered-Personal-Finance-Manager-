@@ -9,18 +9,14 @@ import os
 from dotenv import load_dotenv
 from flask_migrate import Migrate
 from flask_cors import CORS
-from faker import Faker  # For generating mock data
+from faker import Faker
 from datetime import timedelta
 
-
+# Initialize Flask app
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-@app.route('/')
-def home():
-    return "Welcome to the Finance Manager API!"
-
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
 # Configure PostgreSQL Database
@@ -29,41 +25,42 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize Database
 db = SQLAlchemy(app)
-migrate = Migrate(app, db)  # Initialize Flask-Migrate
+migrate = Migrate(app, db)
 
 # JWT Configuration
-app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')  # Load secret key from environment
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=12)  # Set token expiry to 12 hours
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=12)
 jwt = JWTManager(app)
 
-# Models (same as before)
+# Models
 class User(db.Model):
-    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
 
 class Expense(db.Model):
-    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     category = db.Column(db.String(50), nullable=False)
     date = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Budget(db.Model):
-    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
     category = db.Column(db.String(50), nullable=False)
     limit = db.Column(db.Float, nullable=False)
 
 class Goal(db.Model):
-    id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
     goal_name = db.Column(db.String(100), nullable=False)
     target_amount = db.Column(db.Float, nullable=False)
     saved_amount = db.Column(db.Float, default=0.0)
+    target_date = db.Column(db.DateTime)
 
-# Helper Functions (same as before)
+# Helper Functions
 def predict_future_expenses(user_id):
     """Improved AI model to predict future expenses using Random Forest."""
     expenses = Expense.query.filter_by(user_id=user_id).all()
@@ -104,6 +101,20 @@ def login():
         return jsonify({"access_token": access_token, "message": "Login successful"}), 200
     return jsonify({"message": "Invalid credentials"}), 401
 
+# Fetch User Data
+@app.route('/api/user', methods=['GET'])
+@jwt_required()
+def get_user():
+    user_id = get_jwt_identity()
+    user = User.query.filter_by(id=user_id).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+    return jsonify({
+        "id": user.id,
+        "name": user.name,
+        "email": user.email
+    }), 200
+
 # Expense Tracking
 @app.route('/api/expenses', methods=['POST'])
 @jwt_required()
@@ -121,6 +132,24 @@ def get_expenses():
     user_id = get_jwt_identity()
     expenses = Expense.query.filter_by(user_id=user_id).all()
     return jsonify([{"id": e.id, "amount": e.amount, "category": e.category, "date": e.date} for e in expenses]), 200
+
+# DELETE endpoint for expenses
+@app.route('/api/expenses/<expense_id>', methods=['DELETE'])
+@jwt_required()
+def delete_expense(expense_id):
+    user_id = get_jwt_identity()
+
+    # Find the expense by ID and user ID
+    expense = Expense.query.filter_by(id=expense_id, user_id=user_id).first()
+
+    if not expense:
+        return jsonify({"message": "Expense not found"}), 404
+
+    # Delete the expense
+    db.session.delete(expense)
+    db.session.commit()
+
+    return jsonify({"message": "Expense deleted successfully"}), 200
 
 # Budgeting
 @app.route('/api/budgets', methods=['POST'])
@@ -140,13 +169,23 @@ def get_budgets():
     budgets = Budget.query.filter_by(user_id=user_id).all()
     return jsonify([{"id": b.id, "category": b.category, "limit": b.limit} for b in budgets]), 200
 
-# AI Insights
-@app.route('/api/insights/predictions', methods=['GET'])
+# DELETE endpoint for budgets
+@app.route('/api/budgets/<budget_id>', methods=['DELETE'])
 @jwt_required()
-def get_predictions():
+def delete_budget(budget_id):
     user_id = get_jwt_identity()
-    predictions = predict_future_expenses(user_id)
-    return jsonify({"predictions": predictions}), 200
+
+    # Find the budget by ID and user ID
+    budget = Budget.query.filter_by(id=budget_id, user_id=user_id).first()
+
+    if not budget:
+        return jsonify({"message": "Budget not found"}), 404
+
+    # Delete the budget
+    db.session.delete(budget)
+    db.session.commit()
+
+    return jsonify({"message": "Budget deleted successfully"}), 200
 
 # Goal Setting
 @app.route('/api/goals', methods=['POST'])
@@ -154,7 +193,20 @@ def get_predictions():
 def create_goal():
     data = request.json
     user_id = get_jwt_identity()
-    new_goal = Goal(id=str(uuid.uuid4()), user_id=user_id, goal_name=data['goal_name'], target_amount=data['target_amount'])
+
+    # Parse the target_date from the request (if provided)
+    target_date = None
+    if data.get('target_date'):
+        target_date = datetime.strptime(data['target_date'], '%Y-%m-%d')
+
+    new_goal = Goal(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        goal_name=data['goal_name'],
+        target_amount=data['target_amount'],
+        saved_amount=data.get('saved_amount', 0.0),
+        target_date=target_date
+    )
     db.session.add(new_goal)
     db.session.commit()
     return jsonify({"goal_id": new_goal.id, "message": "Goal created successfully"}), 201
@@ -164,7 +216,39 @@ def create_goal():
 def get_goals():
     user_id = get_jwt_identity()
     goals = Goal.query.filter_by(user_id=user_id).all()
-    return jsonify([{"id": g.id, "goal_name": g.goal_name, "target_amount": g.target_amount, "saved_amount": g.saved_amount} for g in goals]), 200
+    return jsonify([{
+        "id": g.id,
+        "goal_name": g.goal_name,
+        "target_amount": g.target_amount,
+        "saved_amount": g.saved_amount,
+        "target_date": g.target_date.strftime('%Y-%m-%d') if g.target_date else None
+    } for g in goals]), 200
+
+# DELETE endpoint for goals
+@app.route('/api/goals/<goal_id>', methods=['DELETE'])
+@jwt_required()
+def delete_goal(goal_id):
+    user_id = get_jwt_identity()
+
+    # Find the goal by ID and user ID
+    goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+
+    if not goal:
+        return jsonify({"message": "Goal not found"}), 404
+
+    # Delete the goal
+    db.session.delete(goal)
+    db.session.commit()
+
+    return jsonify({"message": "Goal deleted successfully"}), 200
+
+# AI Insights
+@app.route('/api/insights/predictions', methods=['GET'])
+@jwt_required()
+def get_predictions():
+    user_id = get_jwt_identity()
+    predictions = predict_future_expenses(user_id)
+    return jsonify({"predictions": predictions}), 200
 
 # Mock Bank Integration
 fake = Faker()
@@ -238,8 +322,6 @@ def send_notification():
         }), 200
     
     return jsonify({"message": "No notification sent."}), 200
-
-
 
 # Voice Integration (Google Assistant)
 @app.route('/api/voice/command', methods=['POST'])

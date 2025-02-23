@@ -59,7 +59,6 @@ const AddBudgetForm = ({ onSubmit, onClose }) => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-teal-50 to-emerald-50 p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 relative">
-        {/* Close Button */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-teal-600 hover:text-teal-800"

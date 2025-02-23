@@ -1,14 +1,12 @@
 import React from 'react';
-import { DollarSign, AlertCircle, TrendingUp, ChevronUp, ChevronDown } from 'lucide-react';
+import { DollarSign, AlertCircle, TrendingUp, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 
-const BudgetCard = ({ budget }) => {
-  // Calculate percentage spent (assuming budget.spent is provided)
+const BudgetCard = ({ budget, onDelete }) => {
   const spent = budget.spent || 0;
   const percentage = Math.min((spent / budget.limit) * 100, 100);
   const isOverBudget = spent > budget.limit;
   const remaining = budget.limit - spent;
 
-  // Get category icon
   const getCategoryIcon = (category) => {
     const categoryIcons = {
       Housing: '🏠',
@@ -34,9 +32,17 @@ const BudgetCard = ({ budget }) => {
             <p className="text-sm text-teal-600">Monthly Budget</p>
           </div>
         </div>
-        {isOverBudget && (
-          <AlertCircle className="h-6 w-6 text-red-500 animate-pulse" />
-        )}
+        <div className="flex items-center gap-2">
+          {isOverBudget && (
+            <AlertCircle className="h-6 w-6 text-red-500 animate-pulse" />
+          )}
+          <button
+            onClick={() => onDelete(budget.id)}
+            className="text-red-500 hover:text-red-700 transition-colors"
+          >
+            <Trash2 className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
