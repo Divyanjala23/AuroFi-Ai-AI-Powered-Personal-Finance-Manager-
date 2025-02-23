@@ -9,20 +9,25 @@ import os
 from dotenv import load_dotenv
 from flask_migrate import Migrate
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash  # For password hashing
+import re  # For fixing DATABASE_URL
 from faker import Faker  # For generating mock data
 
+# Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
 
-@app.route('/')
-def home():
-    return "Welcome to the Finance Manager API!"
+# Enable CORS with credentials support
+CORS(app, supports_credentials=True)
 
 # Load environment variables from .env file
 load_dotenv()
 
+# Fix DATABASE_URL for PostgreSQL (convert postgres:// to postgresql://)
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://myuser:mypassword@localhost/finance_db')
+DATABASE_URL = re.sub(r'^postgres://', 'postgresql://', DATABASE_URL)  # Fix Heroku-style URLs
+
 # Configure PostgreSQL Database
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://myuser:mypassword@localhost/finance_db')
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize Database
@@ -33,12 +38,12 @@ migrate = Migrate(app, db)  # Initialize Flask-Migrate
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')  # Load secret key from environment
 jwt = JWTManager(app)
 
-# Models (same as before)
+# Models
 class User(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(100), nullable=False)
+    password = db.Column(db.String(100), nullable=False)  # Store hashed passwords
 
 class Expense(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=str(uuid.uuid4()))
@@ -60,19 +65,21 @@ class Goal(db.Model):
     target_amount = db.Column(db.Float, nullable=False)
     saved_amount = db.Column(db.Float, default=0.0)
 
-# Helper Functions (same as before)
+# Helper Functions
 def predict_future_expenses(user_id):
     """Improved AI model to predict future expenses using Random Forest."""
     expenses = Expense.query.filter_by(user_id=user_id).all()
-    if not expenses:
-        return []
+    
+    # Handle edge cases with insufficient data
+    if len(expenses) < 3:
+        return [0.0, 0.0, 0.0]  # Return default predictions
 
     # Prepare data for the model
     X = np.array([i for i in range(len(expenses))]).reshape(-1, 1)
     y = np.array([expense.amount for expense in expenses])
 
     # Train a Random Forest model
-    model = RandomForestRegressor()
+    model = RandomForestRegressor(n_estimators=100)  # Use 100 trees for better predictions
     model.fit(X, y)
 
     # Predict next 3 months
@@ -87,7 +94,15 @@ def predict_future_expenses(user_id):
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.json
-    new_user = User(id=str(uuid.uuid4()), name=data['name'], email=data['email'], password=data['password'])
+
+    # Check if the email already exists
+    existing_user = User.query.filter_by(email=data['email']).first()
+    if existing_user:
+        return jsonify({"error": "Email already exists"}), 400
+
+    # Hash the password before storing
+    hashed_password = generate_password_hash(data['password'])
+    new_user = User(id=str(uuid.uuid4()), name=data['name'], email=data['email'], password=hashed_password)
     db.session.add(new_user)
     db.session.commit()
     return jsonify({"user_id": new_user.id, "message": "User registered successfully"}), 201
@@ -95,8 +110,10 @@ def register():
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     data = request.json
-    user = User.query.filter_by(email=data['email'], password=data['password']).first()
-    if user:
+    user = User.query.filter_by(email=data['email']).first()
+
+    # Verify the password
+    if user and check_password_hash(user.password, data['password']):
         access_token = create_access_token(identity=user.id)
         return jsonify({"access_token": access_token, "message": "Login successful"}), 200
     return jsonify({"message": "Invalid credentials"}), 401
@@ -117,7 +134,12 @@ def add_expense():
 def get_expenses():
     user_id = get_jwt_identity()
     expenses = Expense.query.filter_by(user_id=user_id).all()
-    return jsonify([{"id": e.id, "amount": e.amount, "category": e.category, "date": e.date} for e in expenses]), 200
+    
+    # Convert date to string for JSON serialization
+    return jsonify([
+        {"id": e.id, "amount": e.amount, "category": e.category, "date": e.date.strftime('%Y-%m-%d')}
+        for e in expenses
+    ]), 200
 
 # Budgeting
 @app.route('/api/budgets', methods=['POST'])
@@ -236,8 +258,6 @@ def send_notification():
     
     return jsonify({"message": "No notification sent."}), 200
 
-
-
 # Voice Integration (Google Assistant)
 @app.route('/api/voice/command', methods=['POST'])
 @jwt_required()
@@ -255,4 +275,6 @@ def process_voice_command():
 
 # Run the App
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()  # Ensure tables are created before running the app
     app.run(debug=True)

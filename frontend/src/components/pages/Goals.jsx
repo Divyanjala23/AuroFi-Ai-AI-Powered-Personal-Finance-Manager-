@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 // import Sidebar from '../cards/Sidebar';
 import GoalCard from '../cards/GoalCard';
 import { Loader2 } from 'lucide-react';
+import AddGoalForm from '../cards/AddGoalForm';
 
 const Goals = () => {
   const [goals, setGoals] = useState([]);

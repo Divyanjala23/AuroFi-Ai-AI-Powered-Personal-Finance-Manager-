@@ -1,16 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Filter, Search, Loader2 } from 'lucide-react';
-// import Navbar from '../cards/Navbar';
-// import Sidebar from '../cards/Sidebar';
 import BudgetCard from '../cards/BudgetCard';
+import AddBudgetForm from '../cards/AddBudgetForm';
 
 const Budgets = () => {
-  const [budgets, setBudgets] = useState([]); // Initialize as an empty array
+  const [budgets, setBudgets] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [error, setError] = useState(null); // Added error state
+  const [error, setError] = useState(null);
+  const [showAddBudgetForm, setShowAddBudgetForm] = useState(false);
+  const [filterCriteria, setFilterCriteria] = useState({});
   const navigate = useNavigate();
+
+  // Disable scrolling on the main page when the modal is open
+  useEffect(() => {
+    if (showAddBudgetForm) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+  }, [showAddBudgetForm]);
 
   useEffect(() => {
     const fetchBudgets = async () => {
@@ -33,18 +43,17 @@ const Budgets = () => {
         }
 
         const data = await response.json();
-        console.log('Backend Response:', data); // Log the response for debugging
+        console.log('Backend Response:', data);
 
-        // Ensure budgets is always an array
         if (Array.isArray(data)) {
           setBudgets(data);
         } else {
           console.warn('Expected an array but received:', data);
-          setBudgets([]); // Set to empty array if response is not an array
+          setBudgets([]);
         }
       } catch (error) {
         console.error('Error fetching budgets:', error);
-        setError(error.message); // Set error message
+        setError(error.message);
       } finally {
         setIsLoading(false);
       }
@@ -53,11 +62,45 @@ const Budgets = () => {
     fetchBudgets();
   }, [navigate]);
 
-  // Filter budgets based on search term
+  const handleAddBudget = async (newBudget) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/budgets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newBudget),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add budget');
+      }
+
+      const addedBudget = await response.json();
+      setBudgets([...budgets, addedBudget]);
+      setShowAddBudgetForm(false);
+    } catch (error) {
+      console.error('Error adding budget:', error);
+      setError('Failed to add budget. Please try again.');
+    }
+  };
+
   const filteredBudgets = Array.isArray(budgets)
-    ? budgets.filter((budget) =>
-        budget.name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+    ? budgets.filter((budget) => {
+        const matchesSearch = budget.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesFilter = Object.keys(filterCriteria).every((key) => {
+          if (key === 'category') {
+            return budget.category === filterCriteria[key];
+          }
+          if (key === 'amount') {
+            return budget.amount <= filterCriteria[key];
+          }
+          return true;
+        });
+        return matchesSearch && matchesFilter;
+      })
     : [];
 
   const LoadingState = () => (
@@ -74,7 +117,10 @@ const Budgets = () => {
       </div>
       <h3 className="text-xl font-bold text-teal-800 mb-2">No budgets yet</h3>
       <p className="text-teal-600 mb-4">Create your first budget to start tracking expenses</p>
-      <button className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 transition-colors">
+      <button
+        onClick={() => setShowAddBudgetForm(true)}
+        className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 transition-colors"
+      >
         Create Budget
       </button>
     </div>
@@ -82,9 +128,7 @@ const Budgets = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* <Sidebar /> */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* <Navbar /> */}
         <div className="flex-1 overflow-auto">
           <div className="container mx-auto p-6">
             {/* Header */}
@@ -93,7 +137,10 @@ const Budgets = () => {
                 <h1 className="text-2xl font-bold text-teal-800">Budgets</h1>
                 <p className="text-teal-600">Manage and track your spending limits</p>
               </div>
-              <button className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors">
+              <button
+                onClick={() => setShowAddBudgetForm(true)}
+                className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors"
+              >
                 <Plus className="h-5 w-5" />
                 New Budget
               </button>
@@ -112,7 +159,18 @@ const Budgets = () => {
                     className="w-full pl-10 pr-4 py-2 rounded-lg border-2 border-teal-100 focus:border-teal-500 focus:outline-none"
                   />
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 border-2 border-teal-100 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors">
+                <button
+                  onClick={() => {
+                    const category = prompt('Enter category to filter by:');
+                    const amount = prompt('Enter maximum amount to filter by:');
+                    setFilterCriteria({
+                      ...filterCriteria,
+                      category,
+                      amount: amount ? parseFloat(amount) : null,
+                    });
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 border-2 border-teal-100 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors"
+                >
                   <Filter className="h-5 w-5" />
                   Filter
                 </button>
@@ -141,6 +199,16 @@ const Budgets = () => {
           </div>
         </div>
       </div>
+
+      {/* Add Budget Form */}
+      {showAddBudgetForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+          <AddBudgetForm
+            onSubmit={handleAddBudget}
+            onClose={() => setShowAddBudgetForm(false)}
+          />
+        </div>
+      )}
     </div>
   );
 };

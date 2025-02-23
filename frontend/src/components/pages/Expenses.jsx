@@ -1,16 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Filter, Search, Loader2, Download, Calendar, ArrowUpDown } from 'lucide-react';
-// import Navbar from '../cards/Navbar';
-// import Sidebar from '../cards/Sidebar';
 import ExpenseList from '../cards/ExpenseList';
+import AddExpenseForm from '../cards/AddExpenseForm';
 
 const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAddExpenseForm, setShowAddExpenseForm] = useState(false); // State to toggle form
+  const [sortBy, setSortBy] = useState('date'); // State for sorting
+  const [dateRange, setDateRange] = useState({ start: '', end: '' }); // State for date range
   const navigate = useNavigate();
+
+  // Disable scrolling on the main page when the modal is open
+  useEffect(() => {
+    if (showAddExpenseForm) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+  }, [showAddExpenseForm]);
 
   useEffect(() => {
     const fetchExpenses = async () => {
@@ -47,24 +58,74 @@ const Expenses = () => {
     fetchExpenses();
   }, [navigate]);
 
+  // Handle adding a new expense
+  const handleAddExpense = async (newExpense) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/expenses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newExpense),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add expense');
+      }
+
+      const addedExpense = await response.json();
+      setExpenses([...expenses, addedExpense]); // Update the expenses list
+      setShowAddExpenseForm(false); // Hide the form after submission
+    } catch (error) {
+      console.error('Error adding expense:', error);
+      setError('Failed to add expense. Please try again.');
+    }
+  };
+
+  // Handle sorting
+  const handleSort = (criteria) => {
+    setSortBy(criteria);
+    const sortedExpenses = [...expenses].sort((a, b) => {
+      if (criteria === 'date') {
+        return new Date(a.date) - new Date(b.date);
+      } else if (criteria === 'amount') {
+        return a.amount - b.amount;
+      }
+      return 0;
+    });
+    setExpenses(sortedExpenses);
+  };
+
+  // Handle date range filtering
+  const handleDateRangeFilter = () => {
+    const filtered = expenses.filter((expense) => {
+      const expenseDate = new Date(expense.date);
+      const startDate = dateRange.start ? new Date(dateRange.start) : null;
+      const endDate = dateRange.end ? new Date(dateRange.end) : null;
+
+      return (
+        (!startDate || expenseDate >= startDate) &&
+        (!endDate || expenseDate <= endDate)
+      );
+    });
+    setExpenses(filtered);
+  };
+
   const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  
-  const filteredExpenses = expenses.filter(expense =>
-    expense.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    expense.note?.toLowerCase().includes(searchTerm.toLowerCase())
+
+  const filteredExpenses = expenses.filter(
+    (expense) =>
+      expense.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      expense.note?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const LoadingState = () => (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* <Sidebar /> */}
-      <div className="flex-1">
-        {/* <Navbar /> */}
-        <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-          <div className="text-center">
-            <Loader2 className="h-10 w-10 animate-spin text-teal-600 mx-auto mb-4" />
-            <p className="text-teal-800 font-medium">Loading your expenses...</p>
-          </div>
-        </div>
+    <div className="flex items-center justify-center h-[calc(100vh-64px)]">
+      <div className="text-center">
+        <Loader2 className="h-10 w-10 animate-spin text-teal-600 mx-auto mb-4" />
+        <p className="text-teal-800 font-medium">Loading your expenses...</p>
       </div>
     </div>
   );
@@ -73,9 +134,7 @@ const Expenses = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* <Sidebar /> */}
       <div className="flex-1 overflow-auto">
-        {/* <Navbar /> */}
         <div className="container mx-auto p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
@@ -90,7 +149,10 @@ const Expenses = () => {
                 <Download className="h-5 w-5" />
                 Export
               </button>
-              <button className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors">
+              <button
+                onClick={() => setShowAddExpenseForm(true)}
+                className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors"
+              >
                 <Plus className="h-5 w-5" />
                 Add Expense
               </button>
@@ -112,11 +174,17 @@ const Expenses = () => {
                   />
                 </div>
               </div>
-              <button className="flex items-center gap-2 px-4 py-2 border-2 border-teal-100 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors">
+              <button
+                onClick={() => handleDateRangeFilter()}
+                className="flex items-center gap-2 px-4 py-2 border-2 border-teal-100 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors"
+              >
                 <Calendar className="h-5 w-5" />
                 Date Range
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 border-2 border-teal-100 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors">
+              <button
+                onClick={() => handleSort(sortBy === 'date' ? 'amount' : 'date')}
+                className="flex items-center gap-2 px-4 py-2 border-2 border-teal-100 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors"
+              >
                 <ArrowUpDown className="h-5 w-5" />
                 Sort
               </button>
@@ -140,6 +208,16 @@ const Expenses = () => {
           </div>
         </div>
       </div>
+
+      {/* Add Expense Form */}
+      {showAddExpenseForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+          <AddExpenseForm
+            onSubmit={handleAddExpense}
+            onClose={() => setShowAddExpenseForm(false)}
+          />
+        </div>
+      )}
     </div>
   );
 };

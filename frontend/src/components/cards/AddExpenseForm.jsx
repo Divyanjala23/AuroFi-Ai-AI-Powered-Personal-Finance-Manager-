@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { DollarSign, Tag, Calendar, Loader2, Plus } from 'lucide-react';
+import { DollarSign, Tag, Calendar, Loader2, Plus, X } from 'lucide-react';
 
-const AddExpenseForm = ({ onSubmit }) => {
+const AddExpenseForm = ({ onSubmit, onClose }) => {
   const predefinedCategories = [
     { id: 'housing', name: 'Housing', icon: '🏠' },
     { id: 'food', name: 'Food', icon: '🍽️' },
@@ -63,7 +63,15 @@ const AddExpenseForm = ({ onSubmit }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-teal-50 to-emerald-50 p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 relative max-h-[90vh] overflow-y-auto">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-teal-600 hover:text-teal-800"
+        >
+          <X className="h-6 w-6" />
+        </button>
+
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-teal-800">Add Expense</h2>
           <p className="text-teal-600 mt-2">Track your spending by adding new expenses</p>

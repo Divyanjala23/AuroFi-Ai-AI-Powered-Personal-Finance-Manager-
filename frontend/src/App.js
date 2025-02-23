@@ -7,7 +7,7 @@ import Expenses from './components/pages/Expenses';
 import Budgets from './components/pages/Budgets';
 import Goals from './components/pages/Goals';
 import Insights from './components/pages/Insights';
-import Navbar from './components/cards/Navbar';
+// import Navbar from './components/cards/Navbar';
 import Sidebar from './components/cards/Sidebar';
 
 const App = () => {
@@ -28,7 +28,7 @@ const App = () => {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Show Navbar only if logged in */}
-      {loggedIn && <Navbar onLogout={handleLogout} />}
+      {/* {loggedIn && <Navbar onLogout={handleLogout} />} */}
 
       <div className="flex">
         {/* Show Sidebar only if logged in */}
