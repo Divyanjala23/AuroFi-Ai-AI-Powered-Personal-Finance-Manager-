@@ -89,7 +89,7 @@ const Budgets = () => {
 
   const filteredBudgets = Array.isArray(budgets)
     ? budgets.filter((budget) => {
-        const matchesSearch = budget.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = budget.name?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesFilter = Object.keys(filterCriteria).every((key) => {
           if (key === 'category') {
             return budget.category === filterCriteria[key];

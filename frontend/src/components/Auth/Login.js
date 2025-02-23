@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User, Lock, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Login = ({ onLogin }) => {
   const [formData, setFormData] = useState({
@@ -8,6 +9,7 @@ const Login = ({ onLogin }) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({
@@ -59,6 +61,10 @@ const Login = ({ onLogin }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleNavigateToRegister = () => {
+    navigate('/register');
   };
 
   return (
@@ -122,7 +128,11 @@ const Login = ({ onLogin }) => {
           <div className="space-y-3 text-center">
             <div className="text-sm text-teal-700">
               Don't have an account?{' '}
-              <button type="button" className="text-teal-600 hover:text-teal-800 font-medium">
+              <button
+                type="button"
+                onClick={handleNavigateToRegister}
+                className="text-teal-600 hover:text-teal-800 font-medium"
+              >
                 Sign up
               </button>
             </div>

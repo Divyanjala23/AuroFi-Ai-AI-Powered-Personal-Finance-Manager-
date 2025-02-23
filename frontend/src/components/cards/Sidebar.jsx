@@ -8,10 +8,11 @@ import {
   LineChart,
   Settings,
   HelpCircle,
-  User
+  User,
+  LogOut // Add the LogOut icon from lucide-react
 } from 'lucide-react';
 
-const Sidebar = () => {
+const Sidebar = ({ onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -91,6 +92,15 @@ const Sidebar = () => {
               <MenuItem key={item.path} {...item} />
             ))}
           </nav>
+
+          {/* Logout Button */}
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-teal-100 hover:bg-white/10 transition-all duration-200"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="font-medium">Logout</span>
+          </button>
         </div>
       </div>
     </div>

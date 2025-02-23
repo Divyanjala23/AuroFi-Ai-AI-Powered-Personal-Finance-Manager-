@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
@@ -7,12 +7,21 @@ import Expenses from './components/pages/Expenses';
 import Budgets from './components/pages/Budgets';
 import Goals from './components/pages/Goals';
 import Insights from './components/pages/Insights';
-// import Navbar from './components/cards/Navbar';
 import Sidebar from './components/cards/Sidebar';
 
 const App = () => {
   const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem('token'));
   const navigate = useNavigate();
+
+  // Check if the user is logged in on initial load
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      setLoggedIn(true);
+    } else {
+      setLoggedIn(false);
+    }
+  }, []);
 
   const handleLogin = () => {
     setLoggedIn(true);
@@ -27,12 +36,9 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Show Navbar only if logged in */}
-      {/* {loggedIn && <Navbar onLogout={handleLogout} />} */}
-
       <div className="flex">
         {/* Show Sidebar only if logged in */}
-        {loggedIn && <Sidebar />}
+        {loggedIn && <Sidebar onLogout={handleLogout} />}
 
         <div className="flex-1 p-4">
           <Routes>
@@ -43,7 +49,7 @@ const App = () => {
                 !loggedIn ? (
                   <Login onLogin={handleLogin} />
                 ) : (
-                  <Navigate to="/dashboard" />
+                  <Navigate to="/dashboard" replace />
                 )
               }
             />
@@ -55,7 +61,7 @@ const App = () => {
                 !loggedIn ? (
                   <Register onRegister={() => navigate('/login')} />
                 ) : (
-                  <Navigate to="/dashboard" />
+                  <Navigate to="/dashboard" replace />
                 )
               }
             />
@@ -67,7 +73,7 @@ const App = () => {
                 loggedIn ? (
                   <Dashboard />
                 ) : (
-                  <Navigate to="/login" />
+                  <Navigate to="/login" replace />
                 )
               }
             />
@@ -79,7 +85,7 @@ const App = () => {
                 loggedIn ? (
                   <Expenses />
                 ) : (
-                  <Navigate to="/login" />
+                  <Navigate to="/login" replace />
                 )
               }
             />
@@ -91,7 +97,7 @@ const App = () => {
                 loggedIn ? (
                   <Budgets />
                 ) : (
-                  <Navigate to="/login" />
+                  <Navigate to="/login" replace />
                 )
               }
             />
@@ -103,7 +109,7 @@ const App = () => {
                 loggedIn ? (
                   <Goals />
                 ) : (
-                  <Navigate to="/login" />
+                  <Navigate to="/login" replace />
                 )
               }
             />
@@ -115,7 +121,7 @@ const App = () => {
                 loggedIn ? (
                   <Insights />
                 ) : (
-                  <Navigate to="/login" />
+                  <Navigate to="/login" replace />
                 )
               }
             />
@@ -125,9 +131,9 @@ const App = () => {
               path="/"
               element={
                 loggedIn ? (
-                  <Navigate to="/dashboard" />
+                  <Navigate to="/dashboard" replace />
                 ) : (
-                  <Navigate to="/login" />
+                  <Navigate to="/login" replace />
                 )
               }
             />

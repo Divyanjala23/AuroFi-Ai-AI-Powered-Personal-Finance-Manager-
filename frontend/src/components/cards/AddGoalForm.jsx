@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Target, DollarSign, Calendar, Loader2 } from 'lucide-react';
+import { Target, DollarSign, Calendar, Loader2, X } from 'lucide-react';
 
-const AddGoalForm = ({ onSubmit }) => {
+const AddGoalForm = ({ onSubmit, onClose }) => {
   const predefinedGoals = [
     { id: 'savings', name: 'Emergency Fund', icon: '🏦', description: 'Build emergency savings' },
     { id: 'vacation', name: 'Vacation', icon: '✈️', description: 'Save for dream vacation' },
@@ -62,7 +62,15 @@ const AddGoalForm = ({ onSubmit }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-teal-50 to-emerald-50 p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 relative max-h-[90vh] overflow-y-auto">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-teal-600 hover:text-teal-800"
+        >
+          <X className="h-6 w-6" />
+        </button>
+
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-teal-800">Set Financial Goal</h2>
           <p className="text-teal-600 mt-2">Plan your future by setting clear financial targets</p>

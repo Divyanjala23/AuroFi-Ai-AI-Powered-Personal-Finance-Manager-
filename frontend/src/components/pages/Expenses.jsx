@@ -117,7 +117,7 @@ const Expenses = () => {
 
   const filteredExpenses = expenses.filter(
     (expense) =>
-      expense.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      expense.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       expense.note?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 

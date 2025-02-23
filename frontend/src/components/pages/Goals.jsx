@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-// import Navbar from '../cards/Navbar';
-// import Sidebar from '../cards/Sidebar';
 import GoalCard from '../cards/GoalCard';
 import { Loader2 } from 'lucide-react';
 import AddGoalForm from '../cards/AddGoalForm';
@@ -10,6 +8,7 @@ const Goals = () => {
   const [goals, setGoals] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAddGoalForm, setShowAddGoalForm] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,6 +42,31 @@ const Goals = () => {
     fetchGoals();
   }, [navigate]);
 
+  const handleAddGoal = async (newGoal) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/goals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(newGoal),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add goal');
+      }
+
+      const addedGoal = await response.json();
+      setGoals([...goals, addedGoal]);
+      setShowAddGoalForm(false);
+    } catch (error) {
+      console.error('Error adding goal:', error);
+      setError('Failed to add goal. Please try again.');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-teal-50 to-emerald-50">
@@ -57,9 +81,7 @@ const Goals = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-teal-50 to-emerald-50">
       <div className="flex">
-        {/* <Sidebar /> */}
         <div className="flex-1">
-          {/* <Navbar /> */}
           <div className="p-8">
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-teal-800">Your Goals</h1>
@@ -78,7 +100,7 @@ const Goals = () => {
                   <p className="text-teal-600 text-lg">No goals found. Start creating your goals today!</p>
                   <button
                     className="mt-4 bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 transition-colors duration-200 font-medium"
-                    onClick={() => {/* Add new goal handler */}}
+                    onClick={() => setShowAddGoalForm(true)}
                   >
                     Create New Goal
                   </button>
@@ -94,6 +116,16 @@ const Goals = () => {
           </div>
         </div>
       </div>
+
+      {/* Add Goal Form */}
+      {showAddGoalForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+          <AddGoalForm
+            onSubmit={handleAddGoal}
+            onClose={() => setShowAddGoalForm(false)}
+          />
+        </div>
+      )}
     </div>
   );
 };
