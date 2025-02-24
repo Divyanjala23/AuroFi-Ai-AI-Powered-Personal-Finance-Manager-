@@ -3,11 +3,13 @@ import PropTypes from 'prop-types';
 import { DollarSign, Calendar, Clock, Search, Trash2 } from 'lucide-react';
 
 const ExpenseList = ({ expenses = [], onDelete }) => {
+  // Validate if expenses is an array
   if (!Array.isArray(expenses)) {
     console.error('Expenses is not an array:', expenses);
     return null;
   }
 
+  // Get the appropriate icon for the expense category
   const getCategoryIcon = (category) => {
     const categoryIcons = {
       Housing: '🏠',
@@ -17,15 +19,17 @@ const ExpenseList = ({ expenses = [], onDelete }) => {
       Entertainment: '🎯',
       Shopping: '🛍️',
       Healthcare: '🏥',
-      default: '💵'
+      default: '💵',
     };
     return categoryIcons[category] || categoryIcons.default;
   };
 
+  // Calculate the total amount of all expenses
   const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6">
+      {/* Header Section */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -39,6 +43,7 @@ const ExpenseList = ({ expenses = [], onDelete }) => {
           </div>
         </div>
 
+        {/* Search Bar */}
         <div className="relative">
           <Search className="absolute left-3 top-3 h-5 w-5 text-teal-400" />
           <input
@@ -49,17 +54,19 @@ const ExpenseList = ({ expenses = [], onDelete }) => {
         </div>
       </div>
 
+      {/* Expense List */}
       <div className="space-y-3">
         {expenses.map((expense) => (
           <div
             key={expense.id}
             className="flex items-center justify-between p-4 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl hover:shadow-md transition-all duration-200"
           >
+            {/* Left Side: Category and Details */}
             <div className="flex items-center gap-4">
               <div className="flex-shrink-0 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
                 <span className="text-xl">{getCategoryIcon(expense.category)}</span>
               </div>
-              
+
               <div>
                 <h3 className="font-semibold text-teal-800">{expense.category}</h3>
                 <div className="flex items-center gap-2 text-sm text-teal-600">
@@ -75,6 +82,7 @@ const ExpenseList = ({ expenses = [], onDelete }) => {
               </div>
             </div>
 
+            {/* Right Side: Amount and Delete Button */}
             <div className="flex items-center gap-4">
               <div className="flex flex-col items-end">
                 <span className="font-bold text-teal-800">
@@ -94,6 +102,7 @@ const ExpenseList = ({ expenses = [], onDelete }) => {
           </div>
         ))}
 
+        {/* Empty State */}
         {expenses.length === 0 && (
           <div className="text-center py-8">
             <div className="text-6xl mb-4">💫</div>
@@ -103,6 +112,7 @@ const ExpenseList = ({ expenses = [], onDelete }) => {
         )}
       </div>
 
+      {/* View All Transactions Button */}
       {expenses.length > 0 && (
         <div className="mt-6 text-center">
           <button className="text-teal-600 hover:text-teal-800 font-medium text-sm transition-colors">
@@ -114,6 +124,7 @@ const ExpenseList = ({ expenses = [], onDelete }) => {
   );
 };
 
+// Prop Types Validation
 ExpenseList.propTypes = {
   expenses: PropTypes.arrayOf(
     PropTypes.shape({
@@ -124,7 +135,7 @@ ExpenseList.propTypes = {
       time: PropTypes.string,
       note: PropTypes.string,
     })
-  ),
+  ).isRequired,
   onDelete: PropTypes.func.isRequired,
 };
 

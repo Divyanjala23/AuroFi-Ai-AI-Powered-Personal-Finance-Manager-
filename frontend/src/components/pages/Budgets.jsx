@@ -1,22 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Filter, Search, Loader2 } from 'lucide-react';
+import { Plus, Tag, DollarSign } from 'lucide-react';
 import BudgetCard from '../cards/BudgetCard';
-import AddBudgetForm from '../cards/AddBudgetForm';
+import AddIncomeCard from '../cards/AddIncomeCard';
 
 const Budgets = () => {
+  const [income, setIncome] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState(null);
-  const [showAddBudgetForm, setShowAddBudgetForm] = useState(false);
-  const [filterCriteria, setFilterCriteria] = useState({ category: '', amount: '' });
-  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showAddIncomeCard, setShowAddIncomeCard] = useState(false);
+  const [showEditBudgetForm, setShowEditBudgetForm] = useState(false);
+  const [editBudgetData, setEditBudgetData] = useState(null);
   const navigate = useNavigate();
 
-  // Fetch budgets from the backend
+  // Fetch income and budgets from the backend
   useEffect(() => {
-    const fetchBudgets = async () => {
+    const fetchData = async () => {
       const token = localStorage.getItem('token');
       if (!token) {
         navigate('/login');
@@ -25,61 +25,72 @@ const Budgets = () => {
 
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:5000/api/budgets', {
+
+        // Fetch income
+        const incomeResponse = await fetch('http://localhost:5000/api/income', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
-        if (!response.ok) {
+        if (!incomeResponse.ok) {
+          throw new Error('Failed to fetch income');
+        }
+
+        const incomeData = await incomeResponse.json();
+        console.log('Fetched income data:', incomeData); // Debugging
+        setIncome(incomeData);
+
+        // Fetch budgets
+        const budgetsResponse = await fetch('http://localhost:5000/api/budgets', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!budgetsResponse.ok) {
           throw new Error('Failed to fetch budgets');
         }
 
-        const data = await response.json();
-        console.log('Backend Response:', data); // Debugging
-
-        if (Array.isArray(data)) {
-          setBudgets(data);
-        } else {
-          console.warn('Expected an array but received:', data);
-          setBudgets([]);
-        }
+        const budgetsData = await budgetsResponse.json();
+        console.log('Fetched budgets data:', budgetsData); // Debugging
+        setBudgets(budgetsData);
       } catch (error) {
-        console.error('Error fetching budgets:', error);
-        setError(error.message);
+        console.error('Error fetching data:', error);
+        setError('Failed to fetch data. Please try again.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchBudgets();
+    fetchData();
   }, [navigate]);
 
-  // Handle adding a new budget
-  const handleAddBudget = async (newBudget) => {
+  // Handle adding income
+  const handleAddIncome = async (newIncome) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/budgets', {
+      const response = await fetch('http://localhost:5000/api/income', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(newBudget),
+        body: JSON.stringify(newIncome),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to add budget');
+        throw new Error('Failed to add income');
       }
 
-      const addedBudget = await response.json();
-      console.log('Added Budget:', addedBudget); // Debugging
-
-      setBudgets((prevBudgets) => [...prevBudgets, addedBudget]);
-      setShowAddBudgetForm(false);
+      const addedIncome = await response.json();
+      console.log('Added income:', addedIncome); // Debugging
+      setIncome((prevIncome) => [...prevIncome, addedIncome]);
+      setShowAddIncomeCard(false);
+      setError(null); // Clear any previous errors
     } catch (error) {
-      console.error('Error adding budget:', error);
-      setError('Failed to add budget. Please try again.');
+      console.error('Error adding income:', error);
+      setError('Failed to add income. Please try again.');
     }
   };
 
@@ -98,53 +109,53 @@ const Budgets = () => {
         throw new Error('Failed to delete budget');
       }
 
+      // Remove the deleted budget from the state
       setBudgets((prevBudgets) => prevBudgets.filter((budget) => budget.id !== budgetId));
+      setError(null); // Clear any previous errors
     } catch (error) {
       console.error('Error deleting budget:', error);
       setError('Failed to delete budget. Please try again.');
     }
   };
 
-  // Filter budgets based on search term and filter criteria
-  const filteredBudgets = Array.isArray(budgets)
-    ? budgets.filter((budget) => {
-        const matchesSearch = budget.name?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = filterCriteria.category
-          ? budget.category === filterCriteria.category
-          : true;
-        const matchesAmount = filterCriteria.amount
-          ? budget.amount <= parseFloat(filterCriteria.amount)
-          : true;
-        return matchesSearch && matchesCategory && matchesAmount;
-      })
-    : [];
+  // Handle editing a budget
+  const handleEditBudget = (budgetId) => {
+    const budgetToEdit = budgets.find((budget) => budget.id === budgetId);
+    if (budgetToEdit) {
+      setEditBudgetData(budgetToEdit);
+      setShowEditBudgetForm(true);
+    }
+  };
 
-  console.log('Filtered Budgets:', filteredBudgets); // Debugging
+  // Handle updating a budget
+  const handleUpdateBudget = async (updatedBudget) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:5000/api/budgets/${updatedBudget.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedBudget),
+      });
 
-  // Loading state
-  const LoadingState = () => (
-    <div className="flex flex-col items-center justify-center min-h-[400px] text-teal-600">
-      <Loader2 className="h-8 w-8 animate-spin mb-4" />
-      <p className="text-lg font-medium">Loading budgets...</p>
-    </div>
-  );
+      if (!response.ok) {
+        throw new Error('Failed to update budget');
+      }
 
-  // Empty state
-  const EmptyState = () => (
-    <div className="flex flex-col items-center justify-center min-h-[400px] text-teal-600">
-      <div className="bg-teal-50 p-4 rounded-full mb-4">
-        <Plus className="h-8 w-8" />
-      </div>
-      <h3 className="text-xl font-bold text-teal-800 mb-2">No budgets yet</h3>
-      <p className="text-teal-600 mb-4">Create your first budget to start tracking expenses</p>
-      <button
-        onClick={() => setShowAddBudgetForm(true)}
-        className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 transition-colors"
-      >
-        Create Budget
-      </button>
-    </div>
-  );
+      // Update the budget in the state
+      const updatedBudgets = budgets.map((budget) =>
+        budget.id === updatedBudget.id ? updatedBudget : budget
+      );
+      setBudgets(updatedBudgets);
+      setShowEditBudgetForm(false);
+      setError(null); // Clear any previous errors
+    } catch (error) {
+      console.error('Error updating budget:', error);
+      setError('Failed to update budget. Please try again.');
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -154,39 +165,16 @@ const Budgets = () => {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-teal-800">Budgets</h1>
-                <p className="text-teal-600">Manage and track your spending limits</p>
+                <h1 className="text-2xl font-bold text-teal-800">Finance Manager</h1>
+                <p className="text-teal-600">Track your income and expenses</p>
               </div>
               <button
-                onClick={() => setShowAddBudgetForm(true)}
+                onClick={() => setShowAddIncomeCard(true)}
                 className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors"
               >
                 <Plus className="h-5 w-5" />
-                New Budget
+                Add Income
               </button>
-            </div>
-
-            {/* Search and Filter Bar */}
-            <div className="bg-white p-4 rounded-xl shadow-sm mb-6">
-              <div className="flex gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-2.5 h-5 w-5 text-teal-400" />
-                  <input
-                    type="text"
-                    placeholder="Search budgets..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 rounded-lg border-2 border-teal-100 focus:border-teal-500 focus:outline-none"
-                  />
-                </div>
-                <button
-                  onClick={() => setShowFilterModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 border-2 border-teal-100 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors"
-                >
-                  <Filter className="h-5 w-5" />
-                  Filter
-                </button>
-              </div>
             </div>
 
             {/* Error State */}
@@ -196,88 +184,106 @@ const Budgets = () => {
               </div>
             )}
 
-            {/* Content */}
-            {isLoading ? (
-              <LoadingState />
-            ) : budgets.length === 0 ? (
-              <EmptyState />
-            ) : (
+            {/* Budget Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {budgets.map((budget) => (
+                <BudgetCard
+                  key={budget.id}
+                  budget={budget}
+                  onDelete={handleDeleteBudget}
+                  onEdit={handleEditBudget}
+                />
+              ))}
+            </div>
+
+            {/* Income List */}
+            <div className="mt-8">
+              <h2 className="text-xl font-bold text-teal-800 mb-4">Income</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredBudgets.map((budget) => (
-                  <BudgetCard
-                    key={budget.id}
-                    budget={budget}
-                    onDelete={handleDeleteBudget}
-                  />
+                {income.map((incomeEntry) => (
+                  <div key={incomeEntry.id} className="bg-white p-4 rounded-lg shadow-md">
+                    <h3 className="text-lg font-semibold">{incomeEntry.source}</h3>
+                    <p className="text-gray-600">Amount: ${incomeEntry.amount}</p>
+                    <p className="text-gray-600">Date: {new Date(incomeEntry.date).toLocaleDateString()}</p>
+                  </div>
                 ))}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Add Budget Form */}
-      {showAddBudgetForm && (
+      {/* Add Income Card */}
+      {showAddIncomeCard && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-          <AddBudgetForm
-            onSubmit={handleAddBudget}
-            onClose={() => setShowAddBudgetForm(false)}
+          <AddIncomeCard
+            onSubmit={handleAddIncome}
+            onClose={() => setShowAddIncomeCard(false)}
           />
         </div>
       )}
 
-      {/* Filter Modal */}
-      {showFilterModal && (
+      {/* Edit Budget Form */}
+      {showEditBudgetForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
           <div className="bg-white p-6 rounded-xl w-full max-w-md">
-            <h2 className="text-xl font-bold text-teal-800 mb-4">Filter Budgets</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-teal-600">Category</label>
-                <select
-                  value={filterCriteria.category}
-                  onChange={(e) =>
-                    setFilterCriteria({ ...filterCriteria, category: e.target.value })
-                  }
-                  className="w-full px-4 py-2 rounded-lg border-2 border-teal-100 focus:border-teal-500 focus:outline-none"
-                >
-                  <option value="">All Categories</option>
-                  {['Housing', 'Food', 'Transport', 'Utilities', 'Entertainment', 'Shopping', 'Healthcare', 'Savings'].map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-teal-600">Maximum Amount</label>
+            <h2 className="text-xl font-bold text-teal-800 mb-4">Edit Budget</h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleUpdateBudget({
+                  ...editBudgetData,
+                  category: e.target.category.value,
+                  limit: parseFloat(e.target.limit.value),
+                });
+              }}
+              className="space-y-4"
+            >
+              {error && (
+                <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+              <div className="relative group">
+                <Tag className="absolute left-3 top-3 h-5 w-5 text-teal-500" />
                 <input
-                  type="range"
-                  min="0"
-                  max="1000"
-                  value={filterCriteria.amount || 0}
-                  onChange={(e) =>
-                    setFilterCriteria({ ...filterCriteria, amount: e.target.value })
-                  }
-                  className="w-full"
+                  type="text"
+                  name="category"
+                  placeholder="Category"
+                  defaultValue={editBudgetData.category}
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border-2 border-teal-100 focus:border-teal-500 focus:outline-none"
+                  required
                 />
-                <p className="text-sm text-teal-600">Selected: ${filterCriteria.amount || 0}</p>
               </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowFilterModal(false)}
-                className="px-4 py-2 text-teal-600 hover:bg-teal-50 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => setShowFilterModal(false)}
-                className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
-              >
-                Apply Filters
-              </button>
-            </div>
+              <div className="relative group">
+                <DollarSign className="absolute left-3 top-3 h-5 w-5 text-teal-500" />
+                <input
+                  type="number"
+                  name="limit"
+                  placeholder="Monthly Limit"
+                  defaultValue={editBudgetData.limit}
+                  className="w-full pl-10 pr-4 py-2 rounded-lg border-2 border-teal-100 focus:border-teal-500 focus:outline-none"
+                  required
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowEditBudgetForm(false)}
+                  className="px-4 py-2 text-teal-600 hover:bg-teal-50 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

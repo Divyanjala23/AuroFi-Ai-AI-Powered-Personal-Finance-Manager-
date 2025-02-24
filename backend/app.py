@@ -60,6 +60,13 @@ class Goal(db.Model):
     saved_amount = db.Column(db.Float, default=0.0)
     target_date = db.Column(db.DateTime)
 
+class Income(db.Model):
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
+    source = db.Column(db.String(100), nullable=False)  # e.g., Salary, Freelance, etc.
+    amount = db.Column(db.Float, nullable=False)
+    date = db.Column(db.DateTime, default=datetime.utcnow)
+
 # Helper Functions
 def predict_future_expenses(user_id):
     """Improved AI model to predict future expenses using Random Forest."""
@@ -241,6 +248,80 @@ def delete_goal(goal_id):
     db.session.commit()
 
     return jsonify({"message": "Goal deleted successfully"}), 200
+
+# Income Management
+@app.route('/api/income', methods=['POST'])
+@jwt_required()
+def add_income():
+    data = request.json
+    user_id = get_jwt_identity()
+
+    # Validate required fields
+    if not data.get('source') or not data.get('amount'):
+        return jsonify({"message": "Source and amount are required"}), 400
+
+    # Create a new income entry
+    new_income = Income(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        source=data['source'],
+        amount=data['amount']
+    )
+    db.session.add(new_income)
+    db.session.commit()
+
+    return jsonify({"income_id": new_income.id, "message": "Income added successfully"}), 201
+
+@app.route('/api/income', methods=['GET'])
+@jwt_required()
+def get_income():
+    user_id = get_jwt_identity()
+    income_entries = Income.query.filter_by(user_id=user_id).all()
+    return jsonify([{
+        "id": i.id,
+        "source": i.source,
+        "amount": i.amount,
+        "date": i.date.isoformat() if i.date else None
+    } for i in income_entries]), 200
+
+@app.route('/api/income/<income_id>', methods=['DELETE'])
+@jwt_required()
+def delete_income(income_id):
+    user_id = get_jwt_identity()
+
+    # Find the income entry by ID and user ID
+    income = Income.query.filter_by(id=income_id, user_id=user_id).first()
+
+    if not income:
+        return jsonify({"message": "Income not found"}), 404
+
+    # Delete the income entry
+    db.session.delete(income)
+    db.session.commit()
+
+    return jsonify({"message": "Income deleted successfully"}), 200
+
+@app.route('/api/income/<income_id>', methods=['PUT'])
+@jwt_required()
+def update_income(income_id):
+    user_id = get_jwt_identity()
+    data = request.json
+
+    # Find the income entry by ID and user ID
+    income = Income.query.filter_by(id=income_id, user_id=user_id).first()
+
+    if not income:
+        return jsonify({"message": "Income not found"}), 404
+
+    # Update the income entry
+    if data.get('source'):
+        income.source = data['source']
+    if data.get('amount'):
+        income.amount = data['amount']
+
+    db.session.commit()
+
+    return jsonify({"message": "Income updated successfully"}), 200
 
 # AI Insights
 @app.route('/api/insights/predictions', methods=['GET'])

@@ -13,10 +13,9 @@ import {
   Link,
   Gift,
   MessageCircle,
-  Smile,
 } from 'lucide-react';
 
-const Profile = () => {
+const Profile = ({ onLogout }) => {
   const navigate = useNavigate();
   const [user, setUser] = useState({ name: '', email: '' });
   const [isEditing, setIsEditing] = useState(false);
@@ -72,6 +71,12 @@ const Profile = () => {
     } catch (error) {
       console.error('Error updating user data:', error);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token'); // Remove the token from localStorage
+    onLogout(); // Call the onLogout function passed from App.js
+    navigate('/login'); // Redirect to the login page
   };
 
   return (
@@ -235,10 +240,7 @@ const Profile = () => {
 
           {/* Logout Button */}
           <button
-            onClick={() => {
-              localStorage.removeItem('token');
-              navigate('/login');
-            }}
+            onClick={handleLogout}
             className="w-full flex items-center gap-3 p-4 bg-red-50 hover:bg-red-100 rounded-xl transition-colors duration-200"
           >
             <LogOut className="h-5 w-5 text-red-600" />
