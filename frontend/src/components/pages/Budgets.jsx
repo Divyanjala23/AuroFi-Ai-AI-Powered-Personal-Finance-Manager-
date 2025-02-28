@@ -151,7 +151,7 @@ const Budgets = () => {
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-teal-800">Finance Manager</h1>
+                <h1 className="text-2xl font-bold text-teal-800">Budget Manager</h1>
                 <p className="text-teal-600">Track your income and expenses</p>
               </div>
             </div>

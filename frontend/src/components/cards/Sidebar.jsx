@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import logo from '../../img/logo.png';
 import {
   LayoutDashboard,
   Receipt,
@@ -83,13 +84,19 @@ const Sidebar = ({ onLogout }) => {
     <div
       className="bg-gradient-to-b from-teal-800 to-teal-900 text-white w-64 h-screen fixed left-0 top-0 flex flex-col"
     >
-      {/* Header */}
+      {/* Logo Header */}
       <div className="p-6">
-        <div className="flex items-center gap-3 px-4">
-          <div className="bg-white/10 p-2 rounded-xl">
-            <PieChart className="h-6 w-6 text-teal-200" />
-          </div>
-          <h2 className="text-xl font-bold text-white">Finance App</h2>
+        <div className="flex items-center justify-center px-4">
+          <img 
+            src={logo} 
+            alt="Company Logo" 
+            className="h-13 w-auto"
+            onError={(e) => {
+              // Fallback if image fails to load
+              e.target.onerror = null;
+              e.target.src = "/api/placeholder/48/48";
+            }}
+          />
         </div>
       </div>
 
@@ -102,9 +109,9 @@ const Sidebar = ({ onLogout }) => {
           <div className="bg-teal-600 p-2 rounded-lg">
             <User className="h-5 w-5 text-white" />
           </div>
-          <div className="text-left flex-1 min-w-0"> {/* Add flex-1 and min-w-0 */}
-            <h3 className="font-medium text-white truncate">{user.name}</h3> {/* Truncate long names */}
-            <p className="text-sm text-teal-200 truncate">{user.email}</p> {/* Truncate long emails */}
+          <div className="text-left flex-1 min-w-0">
+            <h3 className="font-medium text-white truncate">{user.name}</h3>
+            <p className="text-sm text-teal-200 truncate">{user.email}</p>
           </div>
         </button>
       </div>
