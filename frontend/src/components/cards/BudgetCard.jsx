@@ -1,7 +1,34 @@
 import React, { useState } from 'react';
-import { DollarSign, AlertCircle, TrendingUp, ChevronUp, ChevronDown, Trash2, Edit, X, Loader2, Tag } from 'lucide-react';
+import {
+  DollarSign,
+  AlertCircle,
+  TrendingUp,
+  ChevronUp,
+  ChevronDown,
+  Trash2,
+  Edit,
+  X,
+  Loader2,
+  Tag,
+  Download,
+} from 'lucide-react';
+import axios from 'axios';
 
-const BudgetCard = ({ budget, onDelete, onEdit }) => {
+const getCategoryIcon = (category) => {
+  const categoryIcons = {
+    Food: '🍽️',
+    Transport: '🚗',
+    Utilities: '💡',
+    Entertainment: '🎯',
+    Shopping: '🛍️',
+    Healthcare: '🏥',
+    Savings: '💰',
+    Other: '📊',
+  };
+  return categoryIcons[category] || '📊'; // Default icon if category is not found
+};
+
+const BudgetCard = ({ budget, onDelete, onEdit, recurringExpenses = [] }) => {
   const [showEditForm, setShowEditForm] = useState(false);
   const [formData, setFormData] = useState({
     category: budget.category,
@@ -15,21 +42,10 @@ const BudgetCard = ({ budget, onDelete, onEdit }) => {
   const isOverBudget = spent > budget.limit; // Check if the budget is exceeded
   const remaining = budget.limit - spent; // Remaining budget
 
-  // Get an icon for the budget category
-  const getCategoryIcon = (category) => {
-    const categoryIcons = {
-      Housing: '🏠',
-      Food: '🍽️',
-      Transport: '🚗',
-      Utilities: '💡',
-      Entertainment: '🎯',
-      Shopping: '🛍️',
-      Healthcare: '🏥',
-      Savings: '💰',
-      default: '📊',
-    };
-    return categoryIcons[category] || categoryIcons.default;
-  };
+  // Filter recurring expenses for this category
+  const categoryRecurringExpenses = recurringExpenses.filter(
+    (expense) => expense.category === budget.category
+  );
 
   // Handle editing a budget
   const handleEdit = async (e) => {
@@ -86,6 +102,29 @@ const BudgetCard = ({ budget, onDelete, onEdit }) => {
     } catch (error) {
       console.error('Error deleting budget:', error);
       setError('Failed to delete budget. Please try again.');
+    }
+  };
+
+  // Handle exporting expense data
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`/api/export/expenses?category=${budget.category}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      });
+
+      // Create a download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${budget.category}_expenses.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error exporting expenses:', error);
+      setError('Failed to export expenses. Please try again.');
     }
   };
 
@@ -177,6 +216,32 @@ const BudgetCard = ({ budget, onDelete, onEdit }) => {
           </div>
         </div>
       </div>
+
+      {/* Recurring Expenses Section */}
+      {categoryRecurringExpenses.length > 0 && (
+        <div className="mt-4">
+          <h4 className="font-medium text-teal-800">Recurring Expenses</h4>
+          <div className="space-y-2 mt-2">
+            {categoryRecurringExpenses.map((expense) => (
+              <div key={expense.id} className="flex items-center justify-between text-sm">
+                <span className="text-teal-600">{expense.description}</span>
+                <span className="font-medium text-teal-800">
+                  ${expense.amount.toFixed(2)} ({expense.frequency})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Export Button */}
+      <button
+        onClick={handleExport}
+        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+      >
+        <Download className="h-5 w-5" />
+        Export Expenses
+      </button>
 
       {/* Edit Budget Form */}
       {showEditForm && (

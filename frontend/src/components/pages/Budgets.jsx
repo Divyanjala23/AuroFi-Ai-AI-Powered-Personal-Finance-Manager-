@@ -1,20 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Tag, DollarSign } from 'lucide-react';
+import { Tag, DollarSign } from 'lucide-react';
 import BudgetCard from '../cards/BudgetCard';
-import AddIncomeCard from '../cards/AddIncomeCard';
 
 const Budgets = () => {
   const [income, setIncome] = useState([]);
   const [budgets, setBudgets] = useState([]);
+  const [recurringExpenses, setRecurringExpenses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showAddIncomeCard, setShowAddIncomeCard] = useState(false);
   const [showEditBudgetForm, setShowEditBudgetForm] = useState(false);
   const [editBudgetData, setEditBudgetData] = useState(null);
   const navigate = useNavigate();
 
-  // Fetch income and budgets from the backend
+  // Fetch income, budgets, and recurring expenses from the backend
   useEffect(() => {
     const fetchData = async () => {
       const token = localStorage.getItem('token');
@@ -55,6 +54,21 @@ const Budgets = () => {
         const budgetsData = await budgetsResponse.json();
         console.log('Fetched budgets data:', budgetsData); // Debugging
         setBudgets(budgetsData);
+
+        // Fetch recurring expenses
+        const recurringResponse = await fetch('http://localhost:5000/api/recurring-expenses', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!recurringResponse.ok) {
+          throw new Error('Failed to fetch recurring expenses');
+        }
+
+        const recurringData = await recurringResponse.json();
+        console.log('Fetched recurring expenses:', recurringData); // Debugging
+        setRecurringExpenses(recurringData);
       } catch (error) {
         console.error('Error fetching data:', error);
         setError('Failed to fetch data. Please try again.');
@@ -65,34 +79,6 @@ const Budgets = () => {
 
     fetchData();
   }, [navigate]);
-
-  // Handle adding income
-  const handleAddIncome = async (newIncome) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/income', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(newIncome),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add income');
-      }
-
-      const addedIncome = await response.json();
-      console.log('Added income:', addedIncome); // Debugging
-      setIncome((prevIncome) => [...prevIncome, addedIncome]);
-      setShowAddIncomeCard(false);
-      setError(null); // Clear any previous errors
-    } catch (error) {
-      console.error('Error adding income:', error);
-      setError('Failed to add income. Please try again.');
-    }
-  };
 
   // Handle deleting a budget
   const handleDeleteBudget = async (budgetId) => {
@@ -168,13 +154,6 @@ const Budgets = () => {
                 <h1 className="text-2xl font-bold text-teal-800">Finance Manager</h1>
                 <p className="text-teal-600">Track your income and expenses</p>
               </div>
-              <button
-                onClick={() => setShowAddIncomeCard(true)}
-                className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors"
-              >
-                <Plus className="h-5 w-5" />
-                Add Income
-              </button>
             </div>
 
             {/* Error State */}
@@ -192,13 +171,14 @@ const Budgets = () => {
                   budget={budget}
                   onDelete={handleDeleteBudget}
                   onEdit={handleEditBudget}
+                  recurringExpenses={recurringExpenses}
                 />
               ))}
             </div>
 
             {/* Income List */}
             <div className="mt-8">
-              <h2 className="text-xl font-bold text-teal-800 mb-4">Income</h2>
+              {/* <h2 className="text-xl font-bold text-teal-800 mb-4">Income</h2> */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {income.map((incomeEntry) => (
                   <div key={incomeEntry.id} className="bg-white p-4 rounded-lg shadow-md">
@@ -212,16 +192,6 @@ const Budgets = () => {
           </div>
         </div>
       </div>
-
-      {/* Add Income Card */}
-      {showAddIncomeCard && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
-          <AddIncomeCard
-            onSubmit={handleAddIncome}
-            onClose={() => setShowAddIncomeCard(false)}
-          />
-        </div>
-      )}
 
       {/* Edit Budget Form */}
       {showEditBudgetForm && (

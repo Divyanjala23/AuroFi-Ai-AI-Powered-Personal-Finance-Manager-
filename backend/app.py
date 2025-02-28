@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime
@@ -11,6 +11,8 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from faker import Faker
 from datetime import timedelta
+import csv
+import io
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -68,6 +70,14 @@ class Income(db.Model):
     source = db.Column(db.String(100), nullable=False)  # e.g., Salary, Freelance, etc.
     amount = db.Column(db.Float, nullable=False)
     date = db.Column(db.DateTime, default=datetime.utcnow)
+
+class RecurringExpense(db.Model):  # New model for recurring expenses
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    category = db.Column(db.String(50), nullable=False)
+    frequency = db.Column(db.String(50), nullable=False)  # e.g., "monthly", "weekly"
+    next_date = db.Column(db.DateTime, nullable=False)
 
 # Predefined categories and percentages
 CATEGORIES = [
@@ -242,9 +252,23 @@ def manage_expenses(expense_id=None):
 def manage_budgets(budget_id=None):
     user_id = get_jwt_identity()
     if request.method == 'GET':
-        # Fetch all budgets
+        # Fetch all budgets with remaining amounts
         budgets = Budget.query.filter_by(user_id=user_id).all()
-        return jsonify([{"id": b.id, "category": b.category, "limit": b.limit, "income_percentage": b.income_percentage} for b in budgets]), 200
+        budget_data = []
+
+        for budget in budgets:
+            expenses = Expense.query.filter_by(user_id=user_id, category=budget.category).all()
+            total_spent = sum(e.amount for e in expenses)
+            remaining = budget.limit - total_spent
+            budget_data.append({
+                "id": budget.id,
+                "category": budget.category,
+                "limit": budget.limit,
+                "spent": total_spent,
+                "remaining": remaining
+            })
+
+        return jsonify(budget_data), 200
 
     elif request.method == 'POST':
         # Add a new budget
@@ -540,6 +564,93 @@ def allocate_budget():
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": str(e)}), 500
+
+# Recurring Expenses Endpoints
+@app.route('/api/recurring-expenses', methods=['GET', 'POST'])
+@app.route('/api/recurring-expenses/<expense_id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def manage_recurring_expenses(expense_id=None):
+    user_id = get_jwt_identity()
+    if request.method == 'GET':
+        # Fetch all recurring expenses
+        expenses = RecurringExpense.query.filter_by(user_id=user_id).all()
+        return jsonify([{
+            "id": e.id,
+            "amount": e.amount,
+            "category": e.category,
+            "frequency": e.frequency,
+            "next_date": e.next_date.isoformat()
+        } for e in expenses]), 200
+
+    elif request.method == 'POST':
+        # Add a new recurring expense
+        data = request.json
+        new_expense = RecurringExpense(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            amount=data['amount'],
+            category=data['category'],
+            frequency=data['frequency'],
+            next_date=datetime.strptime(data['next_date'], '%Y-%m-%d')
+        )
+        db.session.add(new_expense)
+        db.session.commit()
+        return jsonify({"expense_id": new_expense.id, "message": "Recurring expense added successfully"}), 201
+
+    elif request.method == 'PUT':
+        # Update an existing recurring expense
+        data = request.json
+        expense = RecurringExpense.query.filter_by(id=expense_id, user_id=user_id).first()
+        if not expense:
+            return jsonify({"message": "Recurring expense not found"}), 404
+
+        if data.get('amount'):
+            expense.amount = data['amount']
+        if data.get('category'):
+            expense.category = data['category']
+        if data.get('frequency'):
+            expense.frequency = data['frequency']
+        if data.get('next_date'):
+            expense.next_date = datetime.strptime(data['next_date'], '%Y-%m-%d')
+
+        db.session.commit()
+        return jsonify({"message": "Recurring expense updated successfully"}), 200
+
+    elif request.method == 'DELETE':
+        # Delete a recurring expense
+        expense = RecurringExpense.query.filter_by(id=expense_id, user_id=user_id).first()
+        if not expense:
+            return jsonify({"message": "Recurring expense not found"}), 404
+
+        db.session.delete(expense)
+        db.session.commit()
+        return jsonify({"message": "Recurring expense deleted successfully"}), 200
+
+# Export Expenses to CSV
+@app.route('/api/export/expenses', methods=['GET'])
+@jwt_required()
+def export_expenses():
+    user_id = get_jwt_identity()
+    category = request.args.get('category')  # Get the category from query params
+    expenses = Expense.query.filter_by(user_id=user_id, category=category).all()
+
+    # Create a CSV file
+    output = []
+    output.append(["ID", "Amount", "Category", "Date"])
+    for expense in expenses:
+        output.append([expense.id, expense.amount, expense.category, expense.date])
+
+    # Convert to CSV
+    si = io.StringIO()
+    cw = csv.writer(si)
+    cw.writerows(output)
+    output_csv = si.getvalue()
+
+    # Return as a downloadable file
+    response = make_response(output_csv)
+    response.headers["Content-Disposition"] = f"attachment; filename={category}_expenses.csv"
+    response.headers["Content-type"] = "text/csv"
+    return response
 
 # Run the App
 if __name__ == '__main__':
