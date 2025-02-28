@@ -8,7 +8,12 @@ const AddExpenseForm = ({ onSubmit, onClose }) => {
     { id: 'transport', name: 'Transport', icon: '🚗' },
     { id: 'utilities', name: 'Utilities', icon: '💡' },
     { id: 'shopping', name: 'Shopping', icon: '🛍️' },
-    { id: 'health', name: 'Health', icon: '🏥' }
+    { id: 'health', name: 'Health', icon: '🏥' },
+    { id: 'entertainment', name: 'Entertainment', icon: '🎬' },
+    { id: 'healthcare', name: 'Healthcare', icon: '⚕️' },
+    { id: 'savings', name: 'Savings', icon: '💰' },
+    { id: 'education', name: 'Education', icon: '📚' },
+    { id: 'travel', name: 'Travel', icon: '✈️' }
   ];
 
   const [formData, setFormData] = useState({

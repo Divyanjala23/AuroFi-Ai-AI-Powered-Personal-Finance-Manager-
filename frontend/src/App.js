@@ -9,7 +9,6 @@ import Goals from "./components/pages/Goals";
 import Insights from "./components/pages/Insights";
 import Profile from "./components/pages/Profile";
 import Sidebar from "./components/cards/Sidebar";
-
 import ChangePassword from "./components/features/ChangePassword";
 import EmailNotifications from "./components/features/EmailNotifications";
 import LoginHistory from "./components/features/LoginHistory";
@@ -20,6 +19,7 @@ import ContactSupport from "./components/features/ContactSupport";
 import Feedback from "./components/features/Feedback";
 import SocialLinks from "./components/features/SocialLinks";
 import ReferralProgram from "./components/features/ReferralProgram";
+import BudgetAllocator from "./components/pages/BudgetAllocator";
 
 const App = () => {
   const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem("token"));
@@ -35,11 +35,13 @@ const App = () => {
     }
   }, []);
 
+  // Handle login
   const handleLogin = () => {
     setLoggedIn(true);
-    navigate("/dashboard");
+    navigate("/budgetallocator"); // Redirect to BudgetAllocator after login
   };
 
+  // Handle logout
   const handleLogout = () => {
     localStorage.removeItem("token");
     setLoggedIn(false);
@@ -61,7 +63,7 @@ const App = () => {
                 !loggedIn ? (
                   <Login onLogin={handleLogin} />
                 ) : (
-                  <Navigate to="/dashboard" replace />
+                  <Navigate to="/budgetallocator" replace />
                 )
               }
             />
@@ -71,7 +73,7 @@ const App = () => {
                 !loggedIn ? (
                   <Register onRegister={() => navigate("/login")} />
                 ) : (
-                  <Navigate to="/dashboard" replace />
+                  <Navigate to="/budgetallocator" replace />
                 )
               }
             />
@@ -81,6 +83,12 @@ const App = () => {
               path="/dashboard"
               element={
                 loggedIn ? <Dashboard /> : <Navigate to="/login" replace />
+              }
+            />
+            <Route
+              path="/budgetallocator"
+              element={
+                loggedIn ? <BudgetAllocator /> : <Navigate to="/login" replace />
               }
             />
             <Route
@@ -190,12 +198,12 @@ const App = () => {
               }
             />
 
-            {/* Default Route (Redirect to Dashboard if logged in, else to Login) */}
+            {/* Default Route (Redirect to BudgetAllocator if logged in, else to Login) */}
             <Route
               path="/"
               element={
                 loggedIn ? (
-                  <Navigate to="/dashboard" replace />
+                  <Navigate to="/budgetallocator" replace />
                 ) : (
                   <Navigate to="/login" replace />
                 )

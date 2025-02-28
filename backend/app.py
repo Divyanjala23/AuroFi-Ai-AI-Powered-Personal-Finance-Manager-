@@ -38,6 +38,7 @@ class User(db.Model):
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
+    income = db.Column(db.Float, default=0.0)  # Add income field
 
 class Expense(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -51,6 +52,7 @@ class Budget(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey('user.id'), nullable=False)
     category = db.Column(db.String(50), nullable=False)
     limit = db.Column(db.Float, nullable=False)
+    income_percentage = db.Column(db.Float, nullable=False)  # Percentage of income allocated to this budget
 
 class Goal(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -66,6 +68,18 @@ class Income(db.Model):
     source = db.Column(db.String(100), nullable=False)  # e.g., Salary, Freelance, etc.
     amount = db.Column(db.Float, nullable=False)
     date = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Predefined categories and percentages
+CATEGORIES = [
+    {"name": "Food", "emoji": "🍽️", "percentage": 15},
+    {"name": "Transport", "emoji": "🚗", "percentage": 10},
+    {"name": "Utilities", "emoji": "💡", "percentage": 5},
+    {"name": "Entertainment", "emoji": "🎯", "percentage": 10},
+    {"name": "Shopping", "emoji": "🛍️", "percentage": 10},
+    {"name": "Healthcare", "emoji": "🏥", "percentage": 5},
+    {"name": "Savings", "emoji": "💰", "percentage": 15},
+    {"name": "Other", "emoji": "📊", "percentage": 30},
+]
 
 # Helper Functions
 def predict_future_expenses(user_id):
@@ -88,15 +102,44 @@ def predict_future_expenses(user_id):
 
     return predictions.tolist()
 
+def allocate_budgets(user_id, income):
+    """Automatically allocate budgets based on predefined percentages."""
+    budgets = []
+    for category in CATEGORIES:
+        limit = (income * category['percentage']) / 100
+        new_budget = Budget(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            category=category['name'],
+            limit=limit,
+            income_percentage=category['percentage']
+        )
+        budgets.append(new_budget)
+
+    return budgets
+
 # API Endpoints
 
 # User Management
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     data = request.json
-    new_user = User(id=str(uuid.uuid4()), name=data['name'], email=data['email'], password=data['password'])
+    new_user = User(
+        id=str(uuid.uuid4()),
+        name=data['name'],
+        email=data['email'],
+        password=data['password'],
+        income=data.get('income', 0.0)  # Add income during registration
+    )
     db.session.add(new_user)
     db.session.commit()
+
+    # Automatically allocate budgets based on income
+    if new_user.income > 0:
+        budgets = allocate_budgets(new_user.id, new_user.income)
+        db.session.add_all(budgets)
+        db.session.commit()
+
     return jsonify({"user_id": new_user.id, "message": "User registered successfully"}), 201
 
 @app.route('/api/auth/login', methods=['POST'])
@@ -119,209 +162,252 @@ def get_user():
     return jsonify({
         "id": user.id,
         "name": user.name,
-        "email": user.email
+        "email": user.email,
+        "income": user.income
     }), 200
 
-# Expense Tracking
-@app.route('/api/expenses', methods=['POST'])
+# Update User Income
+@app.route('/api/user/income', methods=['PUT'])
 @jwt_required()
-def add_expense():
-    data = request.json
-    user_id = get_jwt_identity()
-    new_expense = Expense(id=str(uuid.uuid4()), user_id=user_id, amount=data['amount'], category=data['category'])
-    db.session.add(new_expense)
-    db.session.commit()
-    return jsonify({"expense_id": new_expense.id, "message": "Expense added successfully"}), 201
-
-@app.route('/api/expenses', methods=['GET'])
-@jwt_required()
-def get_expenses():
-    user_id = get_jwt_identity()
-    expenses = Expense.query.filter_by(user_id=user_id).all()
-    return jsonify([{"id": e.id, "amount": e.amount, "category": e.category, "date": e.date} for e in expenses]), 200
-
-# DELETE endpoint for expenses
-@app.route('/api/expenses/<expense_id>', methods=['DELETE'])
-@jwt_required()
-def delete_expense(expense_id):
-    user_id = get_jwt_identity()
-
-    # Find the expense by ID and user ID
-    expense = Expense.query.filter_by(id=expense_id, user_id=user_id).first()
-
-    if not expense:
-        return jsonify({"message": "Expense not found"}), 404
-
-    # Delete the expense
-    db.session.delete(expense)
-    db.session.commit()
-
-    return jsonify({"message": "Expense deleted successfully"}), 200
-
-# Budgeting
-@app.route('/api/budgets', methods=['POST'])
-@jwt_required()
-def create_budget():
-    data = request.json
-    user_id = get_jwt_identity()
-    new_budget = Budget(id=str(uuid.uuid4()), user_id=user_id, category=data['category'], limit=data['limit'])
-    db.session.add(new_budget)
-    db.session.commit()
-    return jsonify({"budget_id": new_budget.id, "message": "Budget created successfully"}), 201
-
-@app.route('/api/budgets', methods=['GET'])
-@jwt_required()
-def get_budgets():
-    user_id = get_jwt_identity()
-    budgets = Budget.query.filter_by(user_id=user_id).all()
-    return jsonify([{"id": b.id, "category": b.category, "limit": b.limit} for b in budgets]), 200
-
-# DELETE endpoint for budgets
-@app.route('/api/budgets/<budget_id>', methods=['DELETE'])
-@jwt_required()
-def delete_budget(budget_id):
-    user_id = get_jwt_identity()
-
-    # Find the budget by ID and user ID
-    budget = Budget.query.filter_by(id=budget_id, user_id=user_id).first()
-
-    if not budget:
-        return jsonify({"message": "Budget not found"}), 404
-
-    # Delete the budget
-    db.session.delete(budget)
-    db.session.commit()
-
-    return jsonify({"message": "Budget deleted successfully"}), 200
-
-# Goal Setting
-@app.route('/api/goals', methods=['POST'])
-@jwt_required()
-def create_goal():
-    data = request.json
-    user_id = get_jwt_identity()
-
-    # Parse the target_date from the request (if provided)
-    target_date = None
-    if data.get('target_date'):
-        target_date = datetime.strptime(data['target_date'], '%Y-%m-%d')
-
-    new_goal = Goal(
-        id=str(uuid.uuid4()),
-        user_id=user_id,
-        goal_name=data['goal_name'],
-        target_amount=data['target_amount'],
-        saved_amount=data.get('saved_amount', 0.0),
-        target_date=target_date
-    )
-    db.session.add(new_goal)
-    db.session.commit()
-    return jsonify({"goal_id": new_goal.id, "message": "Goal created successfully"}), 201
-
-@app.route('/api/goals', methods=['GET'])
-@jwt_required()
-def get_goals():
-    user_id = get_jwt_identity()
-    goals = Goal.query.filter_by(user_id=user_id).all()
-    return jsonify([{
-        "id": g.id,
-        "goal_name": g.goal_name,
-        "target_amount": g.target_amount,
-        "saved_amount": g.saved_amount,
-        "target_date": g.target_date.strftime('%Y-%m-%d') if g.target_date else None
-    } for g in goals]), 200
-
-# DELETE endpoint for goals
-@app.route('/api/goals/<goal_id>', methods=['DELETE'])
-@jwt_required()
-def delete_goal(goal_id):
-    user_id = get_jwt_identity()
-
-    # Find the goal by ID and user ID
-    goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
-
-    if not goal:
-        return jsonify({"message": "Goal not found"}), 404
-
-    # Delete the goal
-    db.session.delete(goal)
-    db.session.commit()
-
-    return jsonify({"message": "Goal deleted successfully"}), 200
-
-# Income Management
-@app.route('/api/income', methods=['POST'])
-@jwt_required()
-def add_income():
-    data = request.json
-    user_id = get_jwt_identity()
-
-    # Validate required fields
-    if not data.get('source') or not data.get('amount'):
-        return jsonify({"message": "Source and amount are required"}), 400
-
-    # Create a new income entry
-    new_income = Income(
-        id=str(uuid.uuid4()),
-        user_id=user_id,
-        source=data['source'],
-        amount=data['amount']
-    )
-    db.session.add(new_income)
-    db.session.commit()
-
-    return jsonify({"income_id": new_income.id, "message": "Income added successfully"}), 201
-
-@app.route('/api/income', methods=['GET'])
-@jwt_required()
-def get_income():
-    user_id = get_jwt_identity()
-    income_entries = Income.query.filter_by(user_id=user_id).all()
-    return jsonify([{
-        "id": i.id,
-        "source": i.source,
-        "amount": i.amount,
-        "date": i.date.isoformat() if i.date else None
-    } for i in income_entries]), 200
-
-@app.route('/api/income/<income_id>', methods=['DELETE'])
-@jwt_required()
-def delete_income(income_id):
-    user_id = get_jwt_identity()
-
-    # Find the income entry by ID and user ID
-    income = Income.query.filter_by(id=income_id, user_id=user_id).first()
-
-    if not income:
-        return jsonify({"message": "Income not found"}), 404
-
-    # Delete the income entry
-    db.session.delete(income)
-    db.session.commit()
-
-    return jsonify({"message": "Income deleted successfully"}), 200
-
-@app.route('/api/income/<income_id>', methods=['PUT'])
-@jwt_required()
-def update_income(income_id):
+def update_income():
     user_id = get_jwt_identity()
     data = request.json
+    user = User.query.filter_by(id=user_id).first()
+    if not user:
+        return jsonify({"message": "User not found"}), 404
 
-    # Find the income entry by ID and user ID
-    income = Income.query.filter_by(id=income_id, user_id=user_id).first()
+    user.income = data['income']
+    db.session.commit()
 
-    if not income:
-        return jsonify({"message": "Income not found"}), 404
-
-    # Update the income entry
-    if data.get('source'):
-        income.source = data['source']
-    if data.get('amount'):
-        income.amount = data['amount']
-
+    # Reallocate budgets based on new income
+    budgets = allocate_budgets(user_id, user.income)
+    db.session.add_all(budgets)
     db.session.commit()
 
     return jsonify({"message": "Income updated successfully"}), 200
+
+# Combined API for Expenses
+@app.route('/api/expenses', methods=['GET', 'POST'])
+@app.route('/api/expenses/<expense_id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def manage_expenses(expense_id=None):
+    user_id = get_jwt_identity()
+    if request.method == 'GET':
+        # Fetch all expenses
+        expenses = Expense.query.filter_by(user_id=user_id).all()
+        return jsonify([{"id": e.id, "amount": e.amount, "category": e.category, "date": e.date} for e in expenses]), 200
+
+    elif request.method == 'POST':
+        # Add a new expense
+        data = request.json
+        new_expense = Expense(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            amount=data['amount'],
+            category=data['category']
+        )
+        db.session.add(new_expense)
+        db.session.commit()
+        return jsonify({"expense_id": new_expense.id, "message": "Expense added successfully"}), 201
+
+    elif request.method == 'PUT':
+        # Update an existing expense
+        data = request.json
+        expense = Expense.query.filter_by(id=expense_id, user_id=user_id).first()
+        if not expense:
+            return jsonify({"message": "Expense not found"}), 404
+
+        if data.get('amount'):
+            expense.amount = data['amount']
+        if data.get('category'):
+            expense.category = data['category']
+
+        db.session.commit()
+        return jsonify({"message": "Expense updated successfully"}), 200
+
+    elif request.method == 'DELETE':
+        # Delete an expense
+        expense = Expense.query.filter_by(id=expense_id, user_id=user_id).first()
+        if not expense:
+            return jsonify({"message": "Expense not found"}), 404
+
+        db.session.delete(expense)
+        db.session.commit()
+        return jsonify({"message": "Expense deleted successfully"}), 200
+
+# Combined API for Budgets
+@app.route('/api/budgets', methods=['GET', 'POST'])
+@app.route('/api/budgets/<budget_id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def manage_budgets(budget_id=None):
+    user_id = get_jwt_identity()
+    if request.method == 'GET':
+        # Fetch all budgets
+        budgets = Budget.query.filter_by(user_id=user_id).all()
+        return jsonify([{"id": b.id, "category": b.category, "limit": b.limit, "income_percentage": b.income_percentage} for b in budgets]), 200
+
+    elif request.method == 'POST':
+        # Add a new budget
+        data = request.json
+        new_budget = Budget(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            category=data['category'],
+            limit=data['limit'],
+            income_percentage=data['income_percentage']
+        )
+        db.session.add(new_budget)
+        db.session.commit()
+        return jsonify({"budget_id": new_budget.id, "message": "Budget created successfully"}), 201
+
+    elif request.method == 'PUT':
+        # Update an existing budget
+        data = request.json
+        budget = Budget.query.filter_by(id=budget_id, user_id=user_id).first()
+        if not budget:
+            return jsonify({"message": "Budget not found"}), 404
+
+        if data.get('category'):
+            budget.category = data['category']
+        if data.get('limit'):
+            budget.limit = data['limit']
+        if data.get('income_percentage'):
+            budget.income_percentage = data['income_percentage']
+
+        db.session.commit()
+        return jsonify({"message": "Budget updated successfully"}), 200
+
+    elif request.method == 'DELETE':
+        # Delete a budget
+        budget = Budget.query.filter_by(id=budget_id, user_id=user_id).first()
+        if not budget:
+            return jsonify({"message": "Budget not found"}), 404
+
+        db.session.delete(budget)
+        db.session.commit()
+        return jsonify({"message": "Budget deleted successfully"}), 200
+
+# Combined API for Goals
+@app.route('/api/goals', methods=['GET', 'POST'])
+@app.route('/api/goals/<goal_id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def manage_goals(goal_id=None):
+    user_id = get_jwt_identity()
+    if request.method == 'GET':
+        # Fetch all goals
+        goals = Goal.query.filter_by(user_id=user_id).all()
+        return jsonify([{
+            "id": g.id,
+            "goal_name": g.goal_name,
+            "target_amount": g.target_amount,
+            "saved_amount": g.saved_amount,
+            "target_date": g.target_date.strftime('%Y-%m-%d') if g.target_date else None
+        } for g in goals]), 200
+
+    elif request.method == 'POST':
+        # Add a new goal
+        data = request.json
+        target_date = None
+        if data.get('target_date'):
+            target_date = datetime.strptime(data['target_date'], '%Y-%m-%d')
+
+        new_goal = Goal(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            goal_name=data['goal_name'],
+            target_amount=data['target_amount'],
+            saved_amount=data.get('saved_amount', 0.0),
+            target_date=target_date
+        )
+        db.session.add(new_goal)
+        db.session.commit()
+        return jsonify({"goal_id": new_goal.id, "message": "Goal created successfully"}), 201
+
+    elif request.method == 'PUT':
+        # Update an existing goal
+        data = request.json
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        if not goal:
+            return jsonify({"message": "Goal not found"}), 404
+
+        if data.get('goal_name'):
+            goal.goal_name = data['goal_name']
+        if data.get('target_amount'):
+            goal.target_amount = data['target_amount']
+        if data.get('saved_amount'):
+            goal.saved_amount = data['saved_amount']
+        if data.get('target_date'):
+            goal.target_date = datetime.strptime(data['target_date'], '%Y-%m-%d')
+
+        db.session.commit()
+        return jsonify({"message": "Goal updated successfully"}), 200
+
+    elif request.method == 'DELETE':
+        # Delete a goal
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        if not goal:
+            return jsonify({"message": "Goal not found"}), 404
+
+        db.session.delete(goal)
+        db.session.commit()
+        return jsonify({"message": "Goal deleted successfully"}), 200
+
+# Combined API for Income
+@app.route('/api/income', methods=['GET', 'POST'])
+@app.route('/api/income/<income_id>', methods=['PUT', 'DELETE'])
+@jwt_required()
+def manage_income(income_id=None):
+    user_id = get_jwt_identity()
+    if request.method == 'GET':
+        # Fetch all income entries
+        income_entries = Income.query.filter_by(user_id=user_id).all()
+        return jsonify([{
+            "id": i.id,
+            "source": i.source,
+            "amount": i.amount,
+            "date": i.date.isoformat() if i.date else None
+        } for i in income_entries]), 200
+
+    elif request.method == 'POST':
+        # Add a new income entry
+        data = request.json
+        if not data.get('source') or not data.get('amount'):
+            return jsonify({"message": "Source and amount are required"}), 400
+
+        new_income = Income(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            source=data['source'],
+            amount=data['amount']
+        )
+        db.session.add(new_income)
+        db.session.commit()
+        return jsonify({"income_id": new_income.id, "message": "Income added successfully"}), 201
+
+    elif request.method == 'PUT':
+        # Update an existing income entry
+        data = request.json
+        income = Income.query.filter_by(id=income_id, user_id=user_id).first()
+        if not income:
+            return jsonify({"message": "Income not found"}), 404
+
+        if data.get('source'):
+            income.source = data['source']
+        if data.get('amount'):
+            income.amount = data['amount']
+
+        db.session.commit()
+        return jsonify({"message": "Income updated successfully"}), 200
+
+    elif request.method == 'DELETE':
+        # Delete an income entry
+        income = Income.query.filter_by(id=income_id, user_id=user_id).first()
+        if not income:
+            return jsonify({"message": "Income not found"}), 404
+
+        db.session.delete(income)
+        db.session.commit()
+        return jsonify({"message": "Income deleted successfully"}), 200
 
 # AI Insights
 @app.route('/api/insights/predictions', methods=['GET'])
@@ -418,6 +504,42 @@ def process_voice_command():
         return jsonify({"response": f"You spent ${total} on groceries."}), 200
     
     return jsonify({"response": "I didn't understand that command."}), 200
+
+# Budget Allocation Endpoints
+@app.route('/api/budgets/categories', methods=['GET'])
+@jwt_required()
+def get_budget_categories():
+    return jsonify(CATEGORIES), 200
+
+@app.route('/api/budgets/allocate', methods=['POST'])
+@jwt_required()
+def allocate_budget():
+    data = request.json
+    user_id = get_jwt_identity()
+    total_budget = data.get('totalBudget')
+    budgets = data.get('budgets')
+    allocation_method = data.get('allocationMethod')
+
+    if not total_budget or not budgets or not allocation_method:
+        return jsonify({"message": "Missing required fields"}), 400
+
+    try:
+        # Save budgets to the database
+        for budget in budgets:
+            new_budget = Budget(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                category=budget['name'],
+                limit=budget['amount'],
+                income_percentage=budget['percentage']
+            )
+            db.session.add(new_budget)
+        db.session.commit()
+
+        return jsonify({"message": "Budget allocated successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": str(e)}), 500
 
 # Run the App
 if __name__ == '__main__':
