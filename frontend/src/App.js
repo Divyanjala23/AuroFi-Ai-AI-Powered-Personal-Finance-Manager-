@@ -54,7 +54,11 @@ const App = () => {
         {/* Show Sidebar only if logged in */}
         {loggedIn && <Sidebar onLogout={handleLogout} />}
 
-        <div className="flex-1 p-4">
+        {/* Main Content Area */}
+        <div
+          className={`flex-1 p-4 ${loggedIn ? "ml-64" : ""}`} // Add margin-left if sidebar is visible
+          style={{ overflowY: "auto", height: "100vh" }} // Allow scrolling
+        >
           <Routes>
             {/* Public Routes */}
             <Route

@@ -80,7 +80,9 @@ const Sidebar = ({ onLogout }) => {
   );
 
   return (
-    <div className="bg-gradient-to-b from-teal-800 to-teal-900 text-white w-64 min-h-screen flex flex-col">
+    <div
+      className="bg-gradient-to-b from-teal-800 to-teal-900 text-white w-64 h-screen fixed left-0 top-0 flex flex-col"
+    >
       {/* Header */}
       <div className="p-6">
         <div className="flex items-center gap-3 px-4">
@@ -100,9 +102,9 @@ const Sidebar = ({ onLogout }) => {
           <div className="bg-teal-600 p-2 rounded-lg">
             <User className="h-5 w-5 text-white" />
           </div>
-          <div className="text-left">
-            <h3 className="font-medium text-white">{user.name}</h3>
-            <p className="text-sm text-teal-200">{user.email}</p>
+          <div className="text-left flex-1 min-w-0"> {/* Add flex-1 and min-w-0 */}
+            <h3 className="font-medium text-white truncate">{user.name}</h3> {/* Truncate long names */}
+            <p className="text-sm text-teal-200 truncate">{user.email}</p> {/* Truncate long emails */}
           </div>
         </button>
       </div>
