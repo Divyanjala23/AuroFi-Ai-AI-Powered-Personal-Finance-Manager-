@@ -31,7 +31,7 @@ const Profile = ({ onLogout }) => {
       }
 
       try {
-        const response = await fetch('http://localhost:5000/api/user', {
+        const response = await fetch('http://localhost:5000/api/auth/user', {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -41,6 +41,7 @@ const Profile = ({ onLogout }) => {
 
         const data = await response.json();
         setUser(data);
+        console.log(data);
         setTempName(data.name);
       } catch (error) {
         console.error('Error fetching user data:', error);
